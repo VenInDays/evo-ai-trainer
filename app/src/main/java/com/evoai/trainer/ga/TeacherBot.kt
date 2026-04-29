@@ -1,10 +1,14 @@
 package com.evoai.trainer.ga
 
 import com.evoai.trainer.nn.NeuralNetwork
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlin.math.min
 
 /**
- * Teacher Bot: Evaluates BOT outputs against dataset labels.
- * Computes accuracy, precision, recall, F1-score.
+ * Teacher Bot: Holds ground truth labels and evaluates models.
+ * Picks random batches for training and challenges all 10 models.
  */
 object TeacherBot {
 
@@ -18,9 +22,40 @@ object TeacherBot {
     )
 
     /**
-     * Evaluate a single neural network against the dataset.
+     * Evaluate a single network on a batch.
+     * Returns (fitness, accuracy, correctCount).
      */
-    fun evaluate(
+    fun evaluateBatch(
+        network: NeuralNetwork,
+        batch: List<Pair<FloatArray, Int>>
+    ): Triple<Float, Float, Int> {
+        if (batch.isEmpty()) return Triple(0f, 0f, 0)
+
+        var correct = 0
+        var fitness = 0f
+
+        for ((input, label) in batch) {
+            val prediction = network.predict(input)
+            if (prediction == label) {
+                correct++
+                fitness += 1f
+            } else {
+                // Partial credit based on confidence
+                val output = network.forward(input)[0]
+                val confidence = if (label == 1) output else 1f - output
+                fitness += confidence * 0.5f
+            }
+        }
+
+        val accuracy = correct.toFloat() / batch.size * 100f
+        val normalizedFitness = fitness / batch.size
+        return Triple(normalizedFitness, accuracy, correct)
+    }
+
+    /**
+     * Full evaluation with precision/recall/F1.
+     */
+    fun evaluateFull(
         network: NeuralNetwork,
         dataset: List<Pair<FloatArray, Int>>
     ): EvaluationResult {
@@ -63,14 +98,13 @@ object TeacherBot {
     }
 
     /**
-     * Quick accuracy check for a network.
+     * Select a random batch from the dataset.
      */
-    fun quickAccuracy(network: NeuralNetwork, dataset: List<Pair<FloatArray, Int>>): Float {
-        if (dataset.isEmpty()) return 0f
-        var correct = 0
-        for ((input, label) in dataset) {
-            if (network.predict(input) == label) correct++
-        }
-        return correct.toFloat() / dataset.size * 100f
+    fun selectBatch(
+        dataset: List<Pair<FloatArray, Int>>,
+        batchSize: Int = 32
+    ): List<Pair<FloatArray, Int>> {
+        if (dataset.size <= batchSize) return dataset
+        return dataset.shuffled().take(batchSize)
     }
 }

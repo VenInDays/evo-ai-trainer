@@ -6,8 +6,13 @@ import androidx.room.Room
 import androidx.room.RoomDatabase
 
 @Database(
-    entities = [BotEntity::class, TrainingHistoryEntity::class, DatasetMetaEntity::class],
-    version = 1,
+    entities = [
+        BotEntity::class,
+        TrainingHistoryEntity::class,
+        DatasetMetaEntity::class,
+        BestModelCheckpointEntity::class
+    ],
+    version = 2,
     exportSchema = false
 )
 abstract class AppDatabase : RoomDatabase() {

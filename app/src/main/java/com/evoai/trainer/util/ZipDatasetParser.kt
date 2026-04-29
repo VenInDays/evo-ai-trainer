@@ -8,12 +8,6 @@ import java.util.zip.ZipInputStream
 /**
  * Parses a ZIP file containing /like and /nonlike folders of images.
  * Extracts features from images and returns labeled dataset pairs.
- *
- * ZIP structure:
- *   /like/image1.jpg
- *   /like/image2.png
- *   /nonlike/image3.jpg
- *   /nonlike/image4.png
  */
 object ZipDatasetParser {
 
@@ -26,14 +20,9 @@ object ZipDatasetParser {
         val totalSamples: Int get() = likeCount + nonlikeCount
     }
 
-    // Feature extraction size: we downsample to this resolution
     private const val FEATURE_WIDTH = 16
     private const val FEATURE_HEIGHT = 16
 
-    /**
-     * Parse ZIP input stream and extract features.
-     * Returns labeled dataset where label=1 for /like, label=0 for /nonlike.
-     */
     fun parseZip(zipInputStream: ZipInputStream): DatasetResult {
         val samples = mutableListOf<Pair<FloatArray, Int>>()
         var likeCount = 0
@@ -43,32 +32,23 @@ object ZipDatasetParser {
         while (entry != null) {
             val name = entry.name.lowercase()
 
-            // Skip directories and hidden files
             if (entry.isDirectory || name.startsWith("__macosx") || name.contains(".ds_store")) {
                 entry = zipInputStream.nextEntry
                 continue
             }
 
-            // Determine label based on folder
             val label: Int = when {
-                name.contains("like/") || name.contains("like\\") -> {
-                    if (name.contains("nonlike/") || name.contains("nonlike\\") ||
-                        name.contains("non_like/") || name.contains("non-like/")
-                    ) {
-                        0
-                    } else {
-                        1
-                    }
-                }
                 name.contains("nonlike/") || name.contains("nonlike\\") ||
                 name.contains("non_like/") || name.contains("non-like/") -> 0
+                name.contains("like/") || name.contains("like\\") -> {
+                    if (name.contains("non")) 0 else 1
+                }
                 else -> {
                     entry = zipInputStream.nextEntry
                     continue
                 }
             }
 
-            // Read image data from ZIP entry
             try {
                 val imageData = readZipEntry(zipInputStream)
                 val features = extractFeatures(imageData)
@@ -77,7 +57,7 @@ object ZipDatasetParser {
                     samples.add(Pair(features, label))
                     if (label == 1) likeCount++ else nonlikeCount++
                 }
-            } catch (e: Exception) {
+            } catch (_: Exception) {
                 // Skip corrupted images
             }
 
@@ -92,8 +72,26 @@ object ZipDatasetParser {
     }
 
     /**
-     * Read all bytes from current ZIP entry.
+     * Extract features from a Bitmap for inference testing.
      */
+    fun extractFeaturesFromBitmap(bitmap: Bitmap): FloatArray {
+        val scaled = Bitmap.createScaledBitmap(bitmap, FEATURE_WIDTH, FEATURE_HEIGHT, true)
+        val features = FloatArray(FEATURE_WIDTH * FEATURE_HEIGHT)
+        val pixels = IntArray(FEATURE_WIDTH * FEATURE_HEIGHT)
+        scaled.getPixels(pixels, 0, FEATURE_WIDTH, 0, 0, FEATURE_WIDTH, FEATURE_HEIGHT)
+
+        for (i in pixels.indices) {
+            val pixel = pixels[i]
+            val r = (pixel shr 16) and 0xFF
+            val g = (pixel shr 8) and 0xFF
+            val b = pixel and 0xFF
+            features[i] = (0.299f * r + 0.587f * g + 0.114f * b) / 255f
+        }
+
+        if (bitmap !== scaled) scaled.recycle()
+        return features
+    }
+
     private fun readZipEntry(zis: ZipInputStream): ByteArray {
         val buffer = ByteArrayOutputStream()
         val buf = ByteArray(4096)
@@ -104,11 +102,6 @@ object ZipDatasetParser {
         return buffer.toByteArray()
     }
 
-    /**
-     * Extract features from image bytes.
-     * Downsamples to FEATURE_WIDTH x FEATURE_HEIGHT grayscale.
-     * Returns a FloatArray of normalized pixel values [0..1].
-     */
     private fun extractFeatures(imageBytes: ByteArray): FloatArray? {
         return try {
             val options = BitmapFactory.Options().apply {
@@ -119,10 +112,8 @@ object ZipDatasetParser {
             val bitmap = BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, options)
                 ?: return null
 
-            // Downsample to target size
             val scaled = Bitmap.createScaledBitmap(bitmap, FEATURE_WIDTH, FEATURE_HEIGHT, true)
 
-            // Convert to grayscale normalized features
             val features = FloatArray(FEATURE_WIDTH * FEATURE_HEIGHT)
             val pixels = IntArray(FEATURE_WIDTH * FEATURE_HEIGHT)
             scaled.getPixels(pixels, 0, FEATURE_WIDTH, 0, 0, FEATURE_WIDTH, FEATURE_HEIGHT)
@@ -132,28 +123,20 @@ object ZipDatasetParser {
                 val r = (pixel shr 16) and 0xFF
                 val g = (pixel shr 8) and 0xFF
                 val b = pixel and 0xFF
-                // Grayscale conversion
                 features[i] = (0.299f * r + 0.587f * g + 0.114f * b) / 255f
             }
 
-            if (bitmap !== scaled) {
-                scaled.recycle()
-            }
+            if (bitmap !== scaled) scaled.recycle()
             bitmap.recycle()
 
             features
-        } catch (e: Exception) {
+        } catch (_: Exception) {
             null
         }
     }
 
-    /**
-     * Calculate inSampleSize for efficient decoding.
-     */
     private fun calculateInSampleSize(imageBytes: ByteArray): Int {
-        val options = BitmapFactory.Options().apply {
-            inJustDecodeBounds = true
-        }
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
         BitmapFactory.decodeByteArray(imageBytes, 0, imageBytes.size, options)
 
         val targetSize = FEATURE_WIDTH * 2

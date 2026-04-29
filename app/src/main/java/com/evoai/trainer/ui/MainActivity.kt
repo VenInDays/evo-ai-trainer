@@ -2,9 +2,11 @@ package com.evoai.trainer.ui
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
@@ -28,7 +30,6 @@ class MainActivity : AppCompatActivity() {
 
     private val viewModel: TrainingViewModel by viewModels()
 
-    // Views
     private lateinit var tvGeneration: TextView
     private lateinit var tvAccuracy: TextView
     private lateinit var tvFitness: TextView
@@ -36,37 +37,49 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvLikesCount: TextView
     private lateinit var tvNonlikesCount: TextView
     private lateinit var tvMutationRate: TextView
+    private lateinit var tvTargetAccuracy: TextView
     private lateinit var tvTrainingStatus: TextView
     private lateinit var sliderMutationRate: Slider
+    private lateinit var sliderTargetAccuracy: Slider
     private lateinit var chartFitness: LineChart
     private lateinit var rvBots: RecyclerView
     private lateinit var btnImportZip: MaterialButton
     private lateinit var btnStartTraining: MaterialButton
     private lateinit var btnResetStorage: MaterialButton
+    private lateinit var btnSaveModel: MaterialButton
+    private lateinit var btnLoadModel: MaterialButton
+    private lateinit var btnExportCheckpoint: MaterialButton
+    private lateinit var btnTestImage: MaterialButton
     private lateinit var cardTrainingStatus: MaterialCardView
     private lateinit var progressTraining: ProgressBar
+    private lateinit var layoutInferenceResult: View
+    private lateinit var viewInferenceIndicator: View
+    private lateinit var tvInferenceLabel: TextView
+    private lateinit var tvInferenceConfidence: TextView
 
     private val botAdapter = BotAdapter()
 
     // ZIP file picker
     private val zipPickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
-    ) { uri: Uri? ->
-        uri?.let {
-            viewModel.loadDataset(it)
-        }
-    }
+    ) { uri: Uri? -> uri?.let { viewModel.loadDataset(it) } }
+
+    // Image picker for inference test
+    private val imagePickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> uri?.let { viewModel.testImage(it) } }
+
+    // Model file picker (.model / .ckpt)
+    private val modelPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri: Uri? -> uri?.let { viewModel.importModel(it) } }
 
     // Permission launcher
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
-        val allGranted = permissions.all { it.value }
-        if (allGranted) {
-            openZipPicker()
-        } else {
-            Toast.makeText(this, "Storage permission required", Toast.LENGTH_SHORT).show()
-        }
+        if (permissions.all { it.value }) openZipPicker()
+        else Toast.makeText(this, "Storage permission required", Toast.LENGTH_SHORT).show()
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -90,15 +103,25 @@ class MainActivity : AppCompatActivity() {
         tvLikesCount = findViewById(R.id.tvLikesCount)
         tvNonlikesCount = findViewById(R.id.tvNonlikesCount)
         tvMutationRate = findViewById(R.id.tvMutationRate)
+        tvTargetAccuracy = findViewById(R.id.tvTargetAccuracy)
         tvTrainingStatus = findViewById(R.id.tvTrainingStatus)
         sliderMutationRate = findViewById(R.id.sliderMutationRate)
+        sliderTargetAccuracy = findViewById(R.id.sliderTargetAccuracy)
         chartFitness = findViewById(R.id.chartFitness)
         rvBots = findViewById(R.id.rvBots)
         btnImportZip = findViewById(R.id.btnImportZip)
         btnStartTraining = findViewById(R.id.btnStartTraining)
         btnResetStorage = findViewById(R.id.btnResetStorage)
+        btnSaveModel = findViewById(R.id.btnSaveModel)
+        btnLoadModel = findViewById(R.id.btnLoadModel)
+        btnExportCheckpoint = findViewById(R.id.btnExportCheckpoint)
+        btnTestImage = findViewById(R.id.btnTestImage)
         cardTrainingStatus = findViewById(R.id.cardTrainingStatus)
         progressTraining = findViewById(R.id.progressTraining)
+        layoutInferenceResult = findViewById(R.id.layoutInferenceResult)
+        viewInferenceIndicator = findViewById(R.id.viewInferenceIndicator)
+        tvInferenceLabel = findViewById(R.id.tvInferenceLabel)
+        tvInferenceConfidence = findViewById(R.id.tvInferenceConfidence)
     }
 
     private fun setupChart() {
@@ -126,7 +149,6 @@ class MainActivity : AppCompatActivity() {
 
             axisRight.isEnabled = false
             legend.isEnabled = false
-
             setTouchEnabled(true)
             isDragEnabled = true
             setScaleEnabled(true)
@@ -143,21 +165,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun setupListeners() {
-        btnImportZip.setOnClickListener {
-            checkPermissionsAndPickZip()
-        }
+        btnImportZip.setOnClickListener { checkPermissionsAndPickZip() }
 
         btnStartTraining.setOnClickListener {
             if (viewModel.isTrainingLive.value == true) {
                 viewModel.stopTraining()
                 btnStartTraining.text = getString(R.string.start_training)
                 btnStartTraining.setIconResource(android.R.drawable.ic_media_play)
-                cardTrainingStatus.visibility = android.view.View.GONE
+                cardTrainingStatus.visibility = View.GONE
             } else {
                 viewModel.startTraining()
                 btnStartTraining.text = getString(R.string.stop_training)
                 btnStartTraining.setIconResource(android.R.drawable.ic_media_pause)
-                cardTrainingStatus.visibility = android.view.View.VISIBLE
+                cardTrainingStatus.visibility = View.VISIBLE
             }
         }
 
@@ -165,94 +185,114 @@ class MainActivity : AppCompatActivity() {
             viewModel.resetStorage()
             btnStartTraining.text = getString(R.string.start_training)
             btnStartTraining.setIconResource(android.R.drawable.ic_media_play)
-            cardTrainingStatus.visibility = android.view.View.GONE
+            cardTrainingStatus.visibility = View.GONE
+            layoutInferenceResult.visibility = View.GONE
             Toast.makeText(this, "Storage reset", Toast.LENGTH_SHORT).show()
         }
+
+        btnSaveModel.setOnClickListener { viewModel.exportModel() }
+        btnLoadModel.setOnClickListener { openModelPicker() }
+        btnExportCheckpoint.setOnClickListener { viewModel.exportCheckpoint() }
+
+        btnTestImage.setOnClickListener { openImagePicker() }
 
         sliderMutationRate.addOnChangeListener { _, value, _ ->
             tvMutationRate.text = String.format("%.2f", value)
             viewModel.setMutationRate(value)
         }
+
+        sliderTargetAccuracy.addOnChangeListener { _, value, _ ->
+            tvTargetAccuracy.text = String.format("%.0f%%", value)
+            viewModel.setTargetAccuracy(value)
+        }
     }
 
     private fun observeViewModel() {
-        viewModel.generation.observe(this) { gen ->
-            tvGeneration.text = gen.toString()
-        }
+        viewModel.generation.observe(this) { gen -> tvGeneration.text = gen.toString() }
 
         viewModel.bestAccuracy.observe(this) { acc ->
             tvAccuracy.text = String.format("%.1f%%", acc)
             progressTraining.progress = acc.toInt()
         }
 
-        viewModel.avgFitness.observe(this) { fitness ->
-            tvFitness.text = String.format("%.2f", fitness)
-        }
+        viewModel.avgFitness.observe(this) { fitness -> tvFitness.text = String.format("%.2f", fitness) }
 
-        viewModel.bots.observe(this) { bots ->
-            botAdapter.updateBots(bots)
-        }
+        viewModel.bots.observe(this) { bots -> botAdapter.updateBots(bots) }
 
         viewModel.datasetInfo.observe(this) { info ->
             if (info != null) {
-                tvDatasetStatus.text = String.format("Dataset loaded: %d samples", info.totalSamples)
+                tvDatasetStatus.text = String.format("Dataset: %d samples", info.totalSamples)
                 tvLikesCount.apply {
                     text = String.format("Like: %d", info.likeCount)
-                    visibility = android.view.View.VISIBLE
+                    visibility = View.VISIBLE
                 }
                 tvNonlikesCount.apply {
                     text = String.format("Non-like: %d", info.nonlikeCount)
-                    visibility = android.view.View.VISIBLE
+                    visibility = View.VISIBLE
                 }
             } else {
                 tvDatasetStatus.text = getString(R.string.no_dataset)
-                tvLikesCount.visibility = android.view.View.GONE
-                tvNonlikesCount.visibility = android.view.View.GONE
+                tvLikesCount.visibility = View.GONE
+                tvNonlikesCount.visibility = View.GONE
             }
         }
 
         viewModel.isTrainingLive.observe(this) { training ->
-            if (training) {
-                tvTrainingStatus.text = "Training in progress…"
-                btnImportZip.isEnabled = false
-                btnResetStorage.isEnabled = false
-            } else {
-                tvTrainingStatus.text = "Training paused"
-                btnImportZip.isEnabled = true
-                btnResetStorage.isEnabled = true
-            }
+            btnImportZip.isEnabled = !training
+            btnResetStorage.isEnabled = !training
+            btnSaveModel.isEnabled = !training
+            btnLoadModel.isEnabled = !training
+            btnExportCheckpoint.isEnabled = !training
+            if (training) tvTrainingStatus.text = "Training in progress\u2026"
+            else tvTrainingStatus.text = "Training paused"
         }
 
         viewModel.trainingComplete.observe(this) { complete ->
             if (complete) {
                 tvTrainingStatus.text = getString(R.string.target_reached)
-                tvTrainingStatus.setTextColor(
-                    ContextCompat.getColor(this, R.color.emerald_success)
-                )
-                cardTrainingStatus.visibility = android.view.View.VISIBLE
+                tvTrainingStatus.setTextColor(ContextCompat.getColor(this, R.color.emerald_success))
+                cardTrainingStatus.visibility = View.VISIBLE
                 btnStartTraining.text = getString(R.string.start_training)
                 btnStartTraining.setIconResource(android.R.drawable.ic_media_play)
                 Toast.makeText(this, getString(R.string.target_reached), Toast.LENGTH_LONG).show()
             }
         }
 
-        viewModel.fitnessHistory.observe(this) { history ->
-            updateChart(history)
+        viewModel.fitnessHistory.observe(this) { history -> updateChart(history) }
+
+        viewModel.inferenceResult.observe(this) { result ->
+            result?.let {
+                layoutInferenceResult.visibility = View.VISIBLE
+                tvInferenceLabel.text = it.label
+
+                val isLike = it.label == "Like"
+                val color = if (isLike) ContextCompat.getColor(this, R.color.emerald_success)
+                            else ContextCompat.getColor(this, R.color.error_red)
+
+                tvInferenceLabel.setTextColor(color)
+                tvInferenceConfidence.text = String.format("%.1f%% confidence", it.confidence)
+
+                val bg = viewInferenceIndicator.background as? GradientDrawable
+                bg?.setColor(color)
+            }
+        }
+
+        viewModel.exportStatus.observe(this) { msg ->
+            msg?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
+        }
+
+        viewModel.importStatus.observe(this) { msg ->
+            msg?.let { Toast.makeText(this, it, Toast.LENGTH_SHORT).show() }
         }
 
         viewModel.error.observe(this) { err ->
-            err?.let {
-                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
-            }
+            err?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
     }
 
     private fun updateChart(history: List<Pair<Int, Float>>) {
         if (history.isEmpty()) return
-
-        val entries = history.mapIndexed { index, pair ->
-            Entry(pair.first.toFloat(), pair.second)
-        }
+        val entries = history.map { Entry(it.first.toFloat(), it.second) }
 
         val dataSet = LineDataSet(entries, "Best Accuracy").apply {
             color = ContextCompat.getColor(this@MainActivity, R.color.slate_blue_training)
@@ -271,7 +311,6 @@ class MainActivity : AppCompatActivity() {
 
     private fun checkPermissionsAndPickZip() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-            // Android 13+ doesn't need READ_EXTERNAL_STORAGE for content picker
             openZipPicker()
         } else {
             if (ContextCompat.checkSelfPermission(this, Manifest.permission.READ_EXTERNAL_STORAGE)
@@ -285,15 +324,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun openZipPicker() {
-        try {
-            zipPickerLauncher.launch("application/zip")
-        } catch (e: Exception) {
-            // Fallback to any file type
-            try {
-                zipPickerLauncher.launch("*/*")
-            } catch (e2: Exception) {
-                Toast.makeText(this, "Cannot open file picker", Toast.LENGTH_SHORT).show()
-            }
+        try { zipPickerLauncher.launch("application/zip") }
+        catch (e: Exception) {
+            try { zipPickerLauncher.launch("*/*") }
+            catch (_: Exception) { Toast.makeText(this, "Cannot open file picker", Toast.LENGTH_SHORT).show() }
         }
+    }
+
+    private fun openImagePicker() {
+        try { imagePickerLauncher.launch("image/*") }
+        catch (_: Exception) { Toast.makeText(this, "Cannot open image picker", Toast.LENGTH_SHORT).show() }
+    }
+
+    private fun openModelPicker() {
+        try { modelPickerLauncher.launch("*/*") }
+        catch (_: Exception) { Toast.makeText(this, "Cannot open file picker", Toast.LENGTH_SHORT).show() }
     }
 }

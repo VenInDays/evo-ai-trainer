@@ -1,134 +1,130 @@
 package com.evoai.trainer.ga
 
 import com.evoai.trainer.nn.NeuralNetwork
-import kotlin.math.max
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
+import kotlin.random.Random
 
 /**
- * Genetic Algorithm engine that manages the evolutionary training loop.
+ * Multi-Agent Evolutionary Training System.
  *
- * 1. Evaluate all BOTs on the dataset
- * 2. Kill the 9 weakest BOTs
- * 3. Clone the strongest BOT with mutation into 9 new variants
- * 4. Repeat until accuracy > 90%
+ * Implements "Survival of the Fittest" with 10 concurrent Neural Network models.
+ *
+ * The Loop:
+ * 1. Execute: All 10 Models process the same training batch.
+ * 2. Evaluate: Teacher Bot compares outputs vs. ground truth for Fitness Score.
+ * 3. Natural Selection: Identify #1 Model (highest accuracy), terminate the other 9.
+ * 4. Replication: Deep-clone #1 Model into 10 new instances.
+ * 5. Mutation: Apply random variance to 9 clones to ensure evolution.
+ * 6. Termination: Stop when global accuracy reaches user-defined target.
  */
 class GeneticTrainer(
     private val populationSize: Int = 10,
-    private val inputSize: Int,
-    private val mutationRate: Float = 0.05f
+    private val inputSize: Int
 ) {
     private var bots: MutableList<Bot> = mutableListOf()
     private var generation: Int = 0
     private var bestAccuracy: Float = 0f
+    private var targetAccuracy: Float = 90f
+    private var batchSize: Int = 32
 
-    // Dataset: list of (input features, label 0 or 1)
+    // Full dataset
     private var dataset: List<Pair<FloatArray, Int>> = emptyList()
 
-    // Callback for progress updates
+    // Callbacks
     var onGenerationComplete: ((gen: Int, bestAcc: Float, avgFitness: Float, bots: List<Bot>) -> Unit)? = null
+    var onAutoSave: ((bestNetwork: NeuralNetwork, gen: Int, acc: Float) -> Unit)? = null
 
     fun setDataset(data: List<Pair<FloatArray, Int>>) {
         dataset = data
+        batchSize = min(32, data.size / 2).coerceAtLeast(1)
     }
 
-    fun setMutationRate(rate: Float) {
-        // Mutation rate is applied when creating new bots
+    fun setTargetAccuracy(target: Float) {
+        targetAccuracy = target
     }
 
     fun getBots(): List<Bot> = bots.toList()
-
     fun getGeneration(): Int = generation
-
     fun getBestAccuracy(): Float = bestAccuracy
 
     /**
-     * Initialize or reset the population with fresh neural networks.
+     * Initialize population with 10 fresh neural networks.
      */
     fun initializePopulation() {
         generation = 0
         bestAccuracy = 0f
         bots = mutableListOf()
         for (i in 0 until populationSize) {
-            val network = NeuralNetwork(intArrayOf(inputSize, 32, 16, 1))
+            val network = NeuralNetwork(intArrayOf(inputSize, 64, 32, 16, 1))
             bots.add(Bot(id = i, network = network))
         }
     }
 
     /**
-     * Restore population from saved brain data.
-     */
-    fun restorePopulation(savedBots: List<Bot>) {
-        bots = savedBots.toMutableList()
-        if (bots.isNotEmpty()) {
-            generation = bots.first().let {
-                // Generation is stored externally, use current best accuracy
-                0
-            }
-        }
-    }
-
-    /**
      * Run one generation of the evolutionary loop.
-     * Returns true if target accuracy (>90%) has been reached.
+     * Uses parallel coroutines for concurrent evaluation.
+     * Returns true if target accuracy has been reached.
      */
     suspend fun runGeneration(currentMutationRate: Float): Boolean {
         if (dataset.isEmpty()) return false
 
-        // Step 1: Evaluate all BOTs
+        // Step 1: Teacher Bot selects a random training batch
+        val batch = TeacherBot.selectBatch(dataset, batchSize)
+
+        // Step 2: Execute - All 10 Models process the batch in parallel
         for (bot in bots) {
             bot.status = BotStatus.TRAINING
         }
         onGenerationComplete?.invoke(generation, bestAccuracy, 0f, bots.toList())
 
-        var totalFitness = 0f
-        var correctPredictions = 0
-        val totalSamples = dataset.size
-
-        for (bot in bots) {
-            var botCorrect = 0
-            var botFitness = 0f
-
-            for ((input, label) in dataset) {
-                val prediction = bot.network.predict(input)
-                if (prediction == label) {
-                    botCorrect++
-                    botFitness += 1f
-                } else {
-                    // Partial credit based on confidence
-                    val output = bot.network.forward(input)[0]
-                    val confidence = if (label == 1) output else 1f - output
-                    botFitness += confidence * 0.5f
+        // Parallel evaluation using coroutines
+        val results = coroutineScope {
+            bots.map { bot ->
+                async(Dispatchers.Default) {
+                    val (fitness, accuracy, correct) = TeacherBot.evaluateBatch(bot.network, batch)
+                    Triple(bot.id, fitness, accuracy)
                 }
-            }
+            }.awaitAll()
+        }
 
-            bot.fitness = botFitness / totalSamples
-            bot.accuracy = botCorrect.toFloat() / totalSamples * 100f
+        // Apply results
+        for ((botId, fitness, accuracy) in results) {
+            val bot = bots.find { it.id == botId } ?: continue
+            bot.fitness = fitness
+            bot.accuracy = accuracy
             bot.status = BotStatus.EVALUATED
-            totalFitness += bot.fitness
 
-            if (bot.accuracy > bestAccuracy) {
-                bestAccuracy = bot.accuracy
+            if (accuracy > bestAccuracy) {
+                bestAccuracy = accuracy
             }
         }
 
-        val avgFitness = totalFitness / bots.size
+        val avgFitness = bots.map { it.fitness }.average().toFloat()
 
-        // Step 2: Sort by fitness and kill 9 weakest
+        // Step 3: Natural Selection - Sort by fitness, identify #1 Model
         bots.sortByDescending { it.fitness }
         val bestBot = bots[0]
         bestBot.status = BotStatus.BEST
 
-        // Mark eliminated bots
+        // Mark the other 9 as eliminated
         for (i in 1 until bots.size) {
             bots[i].status = BotStatus.ELIMINATED
         }
         onGenerationComplete?.invoke(generation, bestAccuracy, avgFitness, bots.toList())
 
-        // Step 3: Clone strongest BOT into 9 new variants with mutation
+        // Step 4: Replication - Deep-clone #1 Model into 10 instances
+        val bestNetwork = bestBot.network.deepClone()
         val newBots = mutableListOf<Bot>()
-        newBots.add(bestBot.copy(id = 0, status = BotStatus.READY))
 
+        // Keep the champion unmodified
+        newBots.add(Bot(id = 0, network = bestNetwork.deepClone(), status = BotStatus.READY))
+
+        // Step 5: Mutation - Apply random variance to the 9 clones
         for (i in 1 until populationSize) {
-            val mutatedNetwork = bestBot.network.mutate(currentMutationRate)
+            val mutatedNetwork = bestNetwork.mutate(currentMutationRate)
             newBots.add(Bot(id = i, network = mutatedNetwork, status = BotStatus.READY))
         }
 
@@ -136,8 +132,13 @@ class GeneticTrainer(
         bots.addAll(newBots)
         generation++
 
-        // Step 4: Check if target reached
-        return bestAccuracy >= 90f
+        // Auto-save trigger every 5 generations
+        if (generation % 5 == 0) {
+            onAutoSave?.invoke(bestNetwork, generation, bestAccuracy)
+        }
+
+        // Step 6: Termination check
+        return bestAccuracy >= targetAccuracy
     }
 
     /**
@@ -147,10 +148,15 @@ class GeneticTrainer(
         return bots.maxByOrNull { it.fitness }?.network
     }
 
-    /**
-     * Get the best bot.
-     */
     fun getBestBot(): Bot? {
         return bots.maxByOrNull { it.fitness }
+    }
+
+    /**
+     * Run inference on a single input using the best model.
+     */
+    fun predict(input: FloatArray): Pair<Int, Float> {
+        val best = getBestNetwork() ?: return Pair(0, 0f)
+        return best.predictWithConfidence(input)
     }
 }

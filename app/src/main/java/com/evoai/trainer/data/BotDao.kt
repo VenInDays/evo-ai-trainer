@@ -33,4 +33,14 @@ interface BotDao {
 
     @Query("DELETE FROM dataset_meta")
     suspend fun deleteDatasetMeta()
+
+    // Best model checkpoint operations
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertCheckpoint(checkpoint: BestModelCheckpointEntity)
+
+    @Query("SELECT * FROM best_model_checkpoints ORDER BY generation DESC LIMIT 1")
+    suspend fun getLatestCheckpoint(): BestModelCheckpointEntity?
+
+    @Query("DELETE FROM best_model_checkpoints")
+    suspend fun deleteAllCheckpoints()
 }

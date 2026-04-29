@@ -55,21 +55,21 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
+                    android:layout_marginEnd="4dp"
                     app:cardBackgroundColor="@color/navy_primary">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="16dp">
+                        android:padding="14dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/generation_label"
                             android:textColor="@color/gray_300"
-                            android:textSize="11sp"
+                            android:textSize="10sp"
                             android:fontFamily="sans-serif-medium"
                             android:textAllCaps="true" />
 
@@ -79,7 +79,7 @@
                             android:layout_height="wrap_content"
                             android:text="0"
                             android:textColor="@color/white_pure"
-                            android:textSize="28sp"
+                            android:textSize="26sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -89,22 +89,22 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginStart="3dp"
-                    android:layout_marginEnd="3dp"
+                    android:layout_marginStart="4dp"
+                    android:layout_marginEnd="4dp"
                     app:cardBackgroundColor="@color/emerald_success">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="16dp">
+                        android:padding="14dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/accuracy_label"
                             android:textColor="@color/white_pure"
-                            android:textSize="11sp"
+                            android:textSize="10sp"
                             android:fontFamily="sans-serif-medium"
                             android:alpha="0.8"
                             android:textAllCaps="true" />
@@ -115,7 +115,7 @@
                             android:layout_height="wrap_content"
                             android:text="0.0%"
                             android:textColor="@color/white_pure"
-                            android:textSize="28sp"
+                            android:textSize="26sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -125,21 +125,21 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="4dp"
                     app:cardBackgroundColor="@color/slate_blue_training">
 
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:orientation="vertical"
-                        android:padding="16dp">
+                        android:padding="14dp">
 
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
                             android:text="@string/fitness_label"
                             android:textColor="@color/white_pure"
-                            android:textSize="11sp"
+                            android:textSize="10sp"
                             android:fontFamily="sans-serif-medium"
                             android:alpha="0.8"
                             android:textAllCaps="true" />
@@ -150,7 +150,7 @@
                             android:layout_height="wrap_content"
                             android:text="0.0"
                             android:textColor="@color/white_pure"
-                            android:textSize="28sp"
+                            android:textSize="26sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -162,22 +162,15 @@
                 style="@style/CardViewStyle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="12dp"
+                android:layout_marginBottom="10dp"
                 app:cardBackgroundColor="@color/white_pure">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="horizontal"
-                    android:padding="16dp"
+                    android:padding="14dp"
                     android:gravity="center_vertical">
-
-                    <ImageView
-                        android:layout_width="24dp"
-                        android:layout_height="24dp"
-                        android:src="@android:drawable/ic_menu_gallery"
-                        android:tint="@color/gray_500"
-                        android:layout_marginEnd="12dp" />
 
                     <LinearLayout
                         android:layout_width="0dp"
@@ -220,50 +213,21 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- Fitness Graph Card -->
+            <!-- Sliders: Mutation Rate + Target Accuracy -->
             <com.google.android.material.card.MaterialCardView
                 style="@style/CardViewStyle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
+                android:layout_marginBottom="10dp"
                 app:cardBackgroundColor="@color/white_pure">
 
                 <LinearLayout
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
-                    android:padding="16dp">
+                    android:padding="14dp">
 
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/fitness_graph_title"
-                        android:textColor="@color/gray_700"
-                        android:textSize="14sp"
-                        android:fontFamily="sans-serif-medium"
-                        android:layout_marginBottom="8dp" />
-
-                    <com.github.mikephil.charting.charts.LineChart
-                        android:id="@+id/chartFitness"
-                        android:layout_width="match_parent"
-                        android:layout_height="180dp" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
-
-            <!-- Mutation Rate Slider -->
-            <com.google.android.material.card.MaterialCardView
-                style="@style/CardViewStyle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="16dp"
-                app:cardBackgroundColor="@color/white_pure">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
+                    <!-- Mutation Rate -->
                     <LinearLayout
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
@@ -276,7 +240,7 @@
                             android:layout_weight="1"
                             android:text="@string/mutation_rate_label"
                             android:textColor="@color/gray_700"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
                             android:fontFamily="sans-serif-medium" />
 
                         <TextView
@@ -285,7 +249,7 @@
                             android:layout_height="wrap_content"
                             android:text="0.05"
                             android:textColor="@color/slate_blue_training"
-                            android:textSize="14sp"
+                            android:textSize="13sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
 
@@ -293,7 +257,7 @@
                         android:id="@+id/sliderMutationRate"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
+                        android:layout_marginTop="2dp"
                         android:stepSize="0.01"
                         android:valueFrom="0.01"
                         android:valueTo="0.10"
@@ -301,10 +265,80 @@
                         app:thumbColor="@color/slate_blue_training"
                         app:trackColorActive="@color/slate_blue_training"
                         app:trackColorInactive="@color/gray_200" />
+
+                    <!-- Target Accuracy -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginTop="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="@string/target_accuracy_label"
+                            android:textColor="@color/gray_700"
+                            android:textSize="13sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tvTargetAccuracy"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="90%"
+                            android:textColor="@color/emerald_success"
+                            android:textSize="13sp"
+                            android:fontFamily="sans-serif-bold" />
+                    </LinearLayout>
+
+                    <com.google.android.material.slider.Slider
+                        android:id="@+id/sliderTargetAccuracy"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:stepSize="5"
+                        android:valueFrom="10"
+                        android:valueTo="100"
+                        android:value="90"
+                        app:thumbColor="@color/emerald_success"
+                        app:trackColorActive="@color/emerald_success"
+                        app:trackColorInactive="@color/gray_200" />
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- BOTs Grid Section -->
+            <!-- Fitness Graph -->
+            <com.google.android.material.card.MaterialCardView
+                style="@style/CardViewStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                app:cardBackgroundColor="@color/white_pure">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/fitness_graph_title"
+                        android:textColor="@color/gray_700"
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginBottom="6dp" />
+
+                    <com.github.mikephil.charting.charts.LineChart
+                        android:id="@+id/chartFitness"
+                        android:layout_width="match_parent"
+                        android:layout_height="160dp" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- BOTs Grid (2x5) -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -312,14 +346,121 @@
                 android:textColor="@color/gray_800"
                 android:textSize="18sp"
                 android:fontFamily="sans-serif-medium"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="10dp" />
 
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/rvBots"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:nestedScrollingEnabled="false"
-                android:layout_marginBottom="16dp" />
+                android:layout_marginBottom="14dp" />
+
+            <!-- Training Status -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardTrainingStatus"
+                style="@style/CardViewStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/white_pure">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:id="@+id/tvTrainingStatus"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/status_ready"
+                        android:textColor="@color/slate_blue_training"
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium" />
+
+                    <ProgressBar
+                        android:id="@+id/progressTraining"
+                        style="?android:attr/progressBarStyleHorizontal"
+                        android:layout_width="match_parent"
+                        android:layout_height="5dp"
+                        android:layout_marginTop="6dp"
+                        android:progressDrawable="@drawable/progress_drawable"
+                        android:max="100"
+                        android:progress="0" />
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- Inference Test Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/inference_test"
+                android:textColor="@color/gray_800"
+                android:textSize="18sp"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginBottom="10dp" />
+
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardInference"
+                style="@style/CardViewStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="14dp"
+                app:cardBackgroundColor="@color/white_pure">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp"
+                    android:gravity="center">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/btnTestImage"
+                        style="@style/ControlButton.Outlined"
+                        android:layout_width="match_parent"
+                        android:layout_height="48dp"
+                        android:text="@string/test_image"
+                        app:icon="@android:drawable/ic_menu_gallery"
+                        app:iconGravity="textStart" />
+
+                    <LinearLayout
+                        android:id="@+id/layoutInferenceResult"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="vertical"
+                        android:gravity="center"
+                        android:layout_marginTop="12dp"
+                        android:visibility="gone">
+
+                        <View
+                            android:id="@+id/viewInferenceIndicator"
+                            android:layout_width="64dp"
+                            android:layout_height="64dp"
+                            android:layout_marginBottom="8dp"
+                            android:background="@drawable/inference_indicator" />
+
+                        <TextView
+                            android:id="@+id/tvInferenceLabel"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="20sp"
+                            android:fontFamily="sans-serif-bold"
+                            android:textColor="@color/gray_800" />
+
+                        <TextView
+                            android:id="@+id/tvInferenceConfidence"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textSize="14sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:textColor="@color/gray_600"
+                            android:layout_marginTop="4dp" />
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
 
             <!-- Control Panel -->
             <TextView
@@ -329,22 +470,23 @@
                 android:textColor="@color/gray_800"
                 android:textSize="18sp"
                 android:fontFamily="sans-serif-medium"
-                android:layout_marginBottom="12dp" />
+                android:layout_marginBottom="10dp" />
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:orientation="horizontal"
-                android:layout_marginBottom="8dp">
+                android:layout_marginBottom="6dp">
 
                 <com.google.android.material.button.MaterialButton
                     android:id="@+id/btnImportZip"
                     style="@style/ControlButton.Outlined"
                     android:layout_width="0dp"
-                    android:layout_height="52dp"
+                    android:layout_height="48dp"
                     android:layout_weight="1"
-                    android:layout_marginEnd="6dp"
+                    android:layout_marginEnd="4dp"
                     android:text="@string/import_zip"
+                    android:textSize="12sp"
                     app:icon="@android:drawable/ic_menu_upload"
                     app:iconGravity="textStart" />
 
@@ -352,60 +494,78 @@
                     android:id="@+id/btnStartTraining"
                     style="@style/ControlButton.Primary"
                     android:layout_width="0dp"
-                    android:layout_height="52dp"
+                    android:layout_height="48dp"
                     android:layout_weight="1"
-                    android:layout_marginStart="6dp"
+                    android:layout_marginStart="4dp"
                     android:text="@string/start_training"
+                    android:textSize="12sp"
                     app:icon="@android:drawable/ic_media_play"
                     app:iconGravity="textStart" />
             </LinearLayout>
+
+            <!-- Model Management Section -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/model_management"
+                android:textColor="@color/gray_800"
+                android:textSize="16sp"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginTop="8dp"
+                android:layout_marginBottom="10dp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSaveModel"
+                    style="@style/ControlButton.Outlined"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="@string/save_model"
+                    android:textSize="12sp"
+                    app:icon="@android:drawable/ic_menu_save"
+                    app:iconGravity="textStart" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnLoadModel"
+                    style="@style/ControlButton.Outlined"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="@string/load_model"
+                    android:textSize="12sp"
+                    app:icon="@android:drawable/ic_menu_upload"
+                    app:iconGravity="textStart" />
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/btnExportCheckpoint"
+                style="@style/ControlButton.Success"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:text="@string/export_checkpoint"
+                android:textSize="12sp"
+                android:layout_marginBottom="6dp"
+                app:icon="@android:drawable/ic_menu_save"
+                app:iconGravity="textStart" />
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnResetStorage"
                 style="@style/ControlButton.Danger"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="48dp"
                 android:text="@string/reset_storage"
+                android:textSize="12sp"
+                android:layout_marginBottom="24dp"
                 app:icon="@android:drawable/ic_menu_delete"
                 app:iconGravity="textStart" />
-
-            <!-- Training Status -->
-            <com.google.android.material.card.MaterialCardView
-                android:id="@+id/cardTrainingStatus"
-                style="@style/CardViewStyle"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="12dp"
-                android:layout_marginBottom="24dp"
-                android:visibility="gone"
-                app:cardBackgroundColor="@color/white_pure">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="16dp">
-
-                    <TextView
-                        android:id="@+id/tvTrainingStatus"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/status_ready"
-                        android:textColor="@color/slate_blue_training"
-                        android:textSize="14sp"
-                        android:fontFamily="sans-serif-medium" />
-
-                    <ProgressBar
-                        android:id="@+id/progressTraining"
-                        style="?android:attr/progressBarStyleHorizontal"
-                        android:layout_width="match_parent"
-                        android:layout_height="6dp"
-                        android:layout_marginTop="8dp"
-                        android:progressDrawable="@drawable/progress_drawable"
-                        android:max="100"
-                        android:progress="0" />
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>

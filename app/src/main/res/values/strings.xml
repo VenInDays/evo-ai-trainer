@@ -10,15 +10,24 @@
     <string name="reset_storage">Reset Storage</string>
     <string name="bot_prefix">BOT</string>
     <string name="status_ready">Ready</string>
-    <string name="status_training">Training…</string>
+    <string name="status_training">Training\u2026</string>
     <string name="status_complete">Complete!</string>
     <string name="status_error">Error</string>
     <string name="no_dataset">No dataset loaded</string>
-    <string name="dataset_loaded">Dataset loaded: %d samples</string>
-    <string name="training_progress">Generation %d • Accuracy %.1f%%</string>
+    <string name="dataset_loaded" formatted="false">Dataset loaded: %d samples</string>
+    <string name="training_progress" formatted="false">Generation %d \u2022 Accuracy %.1f%%</string>
     <string name="mutation_rate_label">Mutation Rate</string>
+    <string name="target_accuracy_label">Target Accuracy</string>
     <string name="fitness_graph_title">Fitness Over Generations</string>
     <string name="target_reached">Target accuracy reached!</string>
-    <string name="likes_count">Like: %d</string>
-    <string name="nonlikes_count">Non-like: %d</string>
+    <string name="likes_count" formatted="false">Like: %d</string>
+    <string name="nonlikes_count" formatted="false">Non-like: %d</string>
+    <string name="save_model">Save Model</string>
+    <string name="load_model">Load Model</string>
+    <string name="test_image">Test Image</string>
+    <string name="inference_test">Inference Test</string>
+    <string name="export_checkpoint">Export .ckpt</string>
+    <string name="model_management">Model Management</string>
+    <string name="select_test_image">Select an image to test</string>
+    <string name="no_model_for_test">Train a model first before testing</string>
 </resources>

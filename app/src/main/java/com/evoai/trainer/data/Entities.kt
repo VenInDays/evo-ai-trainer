@@ -44,3 +44,18 @@ data class DatasetMetaEntity(
     val featureSize: Int,
     val loadedAt: Long = System.currentTimeMillis()
 )
+
+/**
+ * Room entity for auto-saved best model checkpoints.
+ */
+@Entity(tableName = "best_model_checkpoints")
+data class BestModelCheckpointEntity(
+    @PrimaryKey(autoGenerate = true) val uid: Int = 0,
+    val generation: Int,
+    val serializedNetwork: String,
+    val accuracy: Float,
+    val fitness: Float,
+    val mutationRate: Float,
+    val targetAccuracy: Float,
+    val savedAt: Long = System.currentTimeMillis()
+)

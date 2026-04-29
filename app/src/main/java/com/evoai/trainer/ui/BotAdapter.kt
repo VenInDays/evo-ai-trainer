@@ -27,8 +27,7 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
     }
 
     override fun onBindViewHolder(holder: BotViewHolder, position: Int) {
-        val bot = bots[position]
-        holder.bind(bot)
+        holder.bind(bots[position])
     }
 
     override fun getItemCount(): Int = bots.size
@@ -55,7 +54,7 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
                     progressBotFitness.progressDrawable?.setTint(ContextCompat.getColor(itemView.context, R.color.slate_blue_training))
                 }
                 BotStatus.TRAINING -> {
-                    tvBotStatus.text = "Thinking…"
+                    tvBotStatus.text = "Thinking\u2026"
                     tvBotStatus.setTextColor(ContextCompat.getColor(itemView.context, R.color.slate_blue_training))
                     viewBotIndicator.background.setTint(ContextCompat.getColor(itemView.context, R.color.slate_blue_training))
                     progressBotFitness.progressDrawable?.setTint(ContextCompat.getColor(itemView.context, R.color.slate_blue_training))
@@ -67,7 +66,7 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
                     progressBotFitness.progressDrawable?.setTint(ContextCompat.getColor(itemView.context, R.color.slate_blue_training))
                 }
                 BotStatus.BEST -> {
-                    tvBotStatus.text = String.format("★ Best %.1f%%", bot.accuracy)
+                    tvBotStatus.text = String.format("\u2605 Best %.1f%%", bot.accuracy)
                     tvBotStatus.setTextColor(ContextCompat.getColor(itemView.context, R.color.emerald_success))
                     viewBotIndicator.background.setTint(ContextCompat.getColor(itemView.context, R.color.emerald_success))
                     progressBotFitness.progressDrawable?.setTint(ContextCompat.getColor(itemView.context, R.color.emerald_success))

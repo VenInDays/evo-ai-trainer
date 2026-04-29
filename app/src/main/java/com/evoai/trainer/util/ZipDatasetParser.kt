@@ -22,7 +22,9 @@ object ZipDatasetParser {
         val likeCount: Int,
         val nonlikeCount: Int,
         val featureSize: Int
-    )
+    ) {
+        val totalSamples: Int get() = likeCount + nonlikeCount
+    }
 
     // Feature extraction size: we downsample to this resolution
     private const val FEATURE_WIDTH = 16

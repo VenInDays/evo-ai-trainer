@@ -1,34 +1,8 @@
-import java.util.Properties
-import java.io.FileInputStream
-
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
 }
-
-// Load signing config from local.properties, environment variables, or project properties
-fun getSigningProperty(name: String): String? {
-    // 1. Try project properties (passed via -P flags or gradle.properties)
-    if (project.hasProperty(name)) {
-        return project.property(name) as? String
-    }
-    // 2. Try local.properties
-    val localProperties = Properties()
-    val localPropertiesFile = rootProject.file("local.properties")
-    if (localPropertiesFile.exists()) {
-        localProperties.load(FileInputStream(localPropertiesFile))
-        val value = localProperties.getProperty(name)
-        if (value != null) return value
-    }
-    // 3. Try environment variables
-    return System.getenv(name)
-}
-
-val keystorePath: String? = getSigningProperty("KEYSTORE_PATH")
-val keystorePassword: String? = getSigningProperty("KEYSTORE_PASSWORD")
-val keyAlias: String? = getSigningProperty("KEY_ALIAS")
-val keyPassword: String? = getSigningProperty("KEY_PASSWORD")
 
 android {
     namespace = "com.evoai.trainer"
@@ -46,11 +20,21 @@ android {
 
     signingConfigs {
         create("release") {
-            if (keystorePath != null && keystorePassword != null && keyAlias != null && keyPassword != null) {
-                storeFile = rootProject.file(keystorePath)
-                storePassword = keystorePassword
-                this.keyAlias = keyAlias
-                this.keyPassword = keyPassword
+            // Read signing config from project properties, local.properties, or env vars
+            val ksPath = findProperty("KEYSTORE_PATH") as? String
+                ?: System.getenv("KEYSTORE_PATH")
+            val ksPassword = findProperty("KEYSTORE_PASSWORD") as? String
+                ?: System.getenv("KEYSTORE_PASSWORD")
+            val ksAlias = findProperty("KEY_ALIAS") as? String
+                ?: System.getenv("KEY_ALIAS")
+            val ksKeyPassword = findProperty("KEY_PASSWORD") as? String
+                ?: System.getenv("KEY_PASSWORD")
+
+            if (ksPath != null && ksPassword != null && ksAlias != null && ksKeyPassword != null) {
+                storeFile = rootProject.file(ksPath)
+                storePassword = ksPassword
+                keyAlias = ksAlias
+                keyPassword = ksKeyPassword
             }
         }
     }
@@ -63,11 +47,13 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Use release signing if keystore is available, otherwise fallback to debug
-            signingConfig = if (keystorePath != null && rootProject.file(keystorePath).exists()) {
-                signingConfigs.getByName("release")
+            // Use release signing if keystore is available and exists, otherwise debug
+            val ksPath = findProperty("KEYSTORE_PATH") as? String
+                ?: System.getenv("KEYSTORE_PATH")
+            if (ksPath != null && rootProject.file(ksPath).exists()) {
+                signingConfig = signingConfigs.getByName("release")
             } else {
-                signingConfigs.getByName("debug")
+                signingConfig = signingConfigs.getByName("debug")
             }
         }
         debug {

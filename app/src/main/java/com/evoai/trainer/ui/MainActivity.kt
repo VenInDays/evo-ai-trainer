@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.View
 import android.widget.ProgressBar
+import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
@@ -30,7 +31,10 @@ class MainActivity : AppCompatActivity() {
 
     private val viewModel: TrainingViewModel by viewModels()
 
-    private lateinit var tvGeneration: TextView
+    // Dashboard views
+    private lateinit var tvGenerationBig: TextView
+    private lateinit var tvStagnant: TextView
+    private lateinit var tvTargetIndicator: TextView
     private lateinit var tvAccuracy: TextView
     private lateinit var tvFitness: TextView
     private lateinit var tvDatasetStatus: TextView
@@ -56,6 +60,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewInferenceIndicator: View
     private lateinit var tvInferenceLabel: TextView
     private lateinit var tvInferenceConfidence: TextView
+
+    // v2.0: History Log views
+    private lateinit var tvHistoryLog: TextView
+    private lateinit var scrollHistoryLog: ScrollView
 
     private val botAdapter = BotAdapter()
 
@@ -96,7 +104,11 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        tvGeneration = findViewById(R.id.tvGeneration)
+        // v2.0: Prominent generation dashboard
+        tvGenerationBig = findViewById(R.id.tvGenerationBig)
+        tvStagnant = findViewById(R.id.tvStagnant)
+        tvTargetIndicator = findViewById(R.id.tvTargetIndicator)
+
         tvAccuracy = findViewById(R.id.tvAccuracy)
         tvFitness = findViewById(R.id.tvFitness)
         tvDatasetStatus = findViewById(R.id.tvDatasetStatus)
@@ -122,6 +134,10 @@ class MainActivity : AppCompatActivity() {
         viewInferenceIndicator = findViewById(R.id.viewInferenceIndicator)
         tvInferenceLabel = findViewById(R.id.tvInferenceLabel)
         tvInferenceConfidence = findViewById(R.id.tvInferenceConfidence)
+
+        // v2.0: History log
+        tvHistoryLog = findViewById(R.id.tvHistoryLog)
+        scrollHistoryLog = findViewById(R.id.scrollHistoryLog)
     }
 
     private fun setupChart() {
@@ -203,12 +219,29 @@ class MainActivity : AppCompatActivity() {
 
         sliderTargetAccuracy.addOnChangeListener { _, value, _ ->
             tvTargetAccuracy.text = String.format("%.0f%%", value)
+            tvTargetIndicator.text = String.format("%.0f%%", value)
             viewModel.setTargetAccuracy(value)
         }
     }
 
     private fun observeViewModel() {
-        viewModel.generation.observe(this) { gen -> tvGeneration.text = gen.toString() }
+        // v2.0: Prominent generation dashboard
+        viewModel.generation.observe(this) { gen ->
+            tvGenerationBig.text = gen.toString()
+        }
+
+        // v2.0: Stagnant generations counter
+        viewModel.stagnantGenerations.observe(this) { stagnant ->
+            tvStagnant.text = stagnant.toString()
+            // Highlight stagnant counter with warning color when high
+            if (stagnant > 10) {
+                tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.error_red))
+            } else if (stagnant > 5) {
+                tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
+            } else {
+                tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
+            }
+        }
 
         viewModel.bestAccuracy.observe(this) { acc ->
             tvAccuracy.text = String.format("%.1f%%", acc)
@@ -259,6 +292,15 @@ class MainActivity : AppCompatActivity() {
         }
 
         viewModel.fitnessHistory.observe(this) { history -> updateChart(history) }
+
+        // v2.0: History Log observer
+        viewModel.historyLog.observe(this) { logText ->
+            tvHistoryLog.text = logText.ifEmpty { getString(R.string.history_log_empty) }
+            // Auto-scroll to bottom
+            scrollHistoryLog.post {
+                scrollHistoryLog.fullScroll(ScrollView.FOCUS_DOWN)
+            }
+        }
 
         viewModel.inferenceResult.observe(this) { result ->
             result?.let {

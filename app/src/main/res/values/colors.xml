@@ -11,6 +11,10 @@
     <color name="slate_blue_training">#5B7FFF</color>
     <color name="slate_blue_dark">#4A6AE5</color>
 
+    <!-- Lineage Colors -->
+    <color name="elite_gold">#D4A017</color>
+    <color name="elite_gold_light">#F5D060</color>
+
     <!-- Neutrals -->
     <color name="white_pure">#FFFFFF</color>
     <color name="gray_50">#F8F9FA</color>

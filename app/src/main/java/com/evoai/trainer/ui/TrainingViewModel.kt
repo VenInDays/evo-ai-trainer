@@ -2,7 +2,6 @@ package com.evoai.trainer.ui
 
 import android.app.Application
 import android.content.ContentValues
-import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.net.Uri
 import android.os.Build
@@ -18,6 +17,7 @@ import com.evoai.trainer.data.BotEntity
 import com.evoai.trainer.data.DatasetMetaEntity
 import com.evoai.trainer.data.TrainingHistoryEntity
 import com.evoai.trainer.ga.Bot
+import com.evoai.trainer.ga.BotLineage
 import com.evoai.trainer.ga.BotStatus
 import com.evoai.trainer.ga.GeneticTrainer
 import com.evoai.trainer.nn.CheckpointData
@@ -69,6 +69,14 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
     private val _fitnessHistory = MutableLiveData<List<Pair<Int, Float>>>(emptyList())
     val fitnessHistory: LiveData<List<Pair<Int, Float>>> = _fitnessHistory
 
+    // v2.0: Stagnant generations counter
+    private val _stagnantGenerations = MutableLiveData(0)
+    val stagnantGenerations: LiveData<Int> = _stagnantGenerations
+
+    // v2.0: History log text (last 10 generations)
+    private val _historyLog = MutableLiveData("")
+    val historyLog: LiveData<String> = _historyLog
+
     // Inference test result
     private val _inferenceResult = MutableLiveData<InferenceResult?>(null)
     val inferenceResult: LiveData<InferenceResult?> = _inferenceResult
@@ -83,6 +91,9 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
 
     private var mutationRate: Float = 0.05f
     private var targetAccuracy: Float = 90f
+
+    // History log entries buffer
+    private val historyLogEntries = mutableListOf<String>()
 
     fun setMutationRate(rate: Float) {
         mutationRate = rate
@@ -186,14 +197,24 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                     val gen = currentTrainer.getGeneration()
                     val acc = currentTrainer.getBestAccuracy()
                     val avg = currentTrainer.getBots().map { it.fitness }.average().toFloat()
+                    val stagnant = currentTrainer.getStagnantGenerations()
 
                     _generation.postValue(gen)
                     _bestAccuracy.postValue(acc)
                     _avgFitness.postValue(avg)
+                    _stagnantGenerations.postValue(stagnant)
                     _bots.postValue(currentTrainer.getBots())
 
                     history.add(Pair(gen, acc))
                     _fitnessHistory.postValue(history.toList())
+
+                    // v2.0: Update history log (last 10 generations)
+                    val logEntry = String.format("Gen %d: Best %.1f%% | Avg %.2f | Stag %d", gen, acc, avg, stagnant)
+                    historyLogEntries.add(logEntry)
+                    if (historyLogEntries.size > 10) {
+                        historyLogEntries.removeAt(0)
+                    }
+                    _historyLog.postValue(historyLogEntries.joinToString("\n"))
 
                     // Save history to DB
                     withContext(Dispatchers.IO) {
@@ -253,12 +274,15 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
             }
             trainer = null
             dataset = emptyList()
+            historyLogEntries.clear()
             _generation.value = 0
             _bestAccuracy.value = 0f
             _avgFitness.value = 0f
+            _stagnantGenerations.value = 0
             _bots.value = emptyList()
             _datasetInfo.value = null
             _fitnessHistory.value = emptyList()
+            _historyLog.value = ""
             _trainingComplete.value = false
             _inferenceResult.value = null
         }
@@ -373,11 +397,12 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                             setDataset(dataset)
                             setTargetAccuracy(targetAccuracy)
                             initializePopulation()
-                            // Replace first bot with the loaded network
-                            val bots = getBots().toMutableList()
-                            bots[0] = Bot(id = 0, network = network, fitness = checkpoint.bestAccuracy / 100f, accuracy = checkpoint.bestAccuracy, status = BotStatus.BEST)
-                            for (i in 1 until bots.size) {
-                                bots[i] = Bot(id = i, network = network.mutate(mutationRate))
+                            // Replace first 2 bots with the loaded network as elites
+                            val botsList = getBots().toMutableList()
+                            botsList[0] = Bot(id = 0, network = network, fitness = checkpoint.bestAccuracy / 100f, accuracy = checkpoint.bestAccuracy, status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 1)
+                            botsList[1] = Bot(id = 1, network = network.deepClone(), fitness = checkpoint.bestAccuracy / 100f, accuracy = checkpoint.bestAccuracy, status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 2)
+                            for (i in 2 until botsList.size) {
+                                botsList[i] = Bot(id = i, network = network.mutate(mutationRate), lineage = BotLineage.MUTATED_CLONE, mutationVariance = mutationRate, parentRank = 1)
                             }
                         }
                         _bots.value = trainer?.getBots() ?: emptyList()
@@ -391,10 +416,11 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                             setDataset(dataset)
                             setTargetAccuracy(targetAccuracy)
                             initializePopulation()
-                            val bots = getBots().toMutableList()
-                            bots[0] = Bot(id = 0, network = network, status = BotStatus.BEST)
-                            for (i in 1 until bots.size) {
-                                bots[i] = Bot(id = i, network = network.mutate(mutationRate))
+                            val botsList = getBots().toMutableList()
+                            botsList[0] = Bot(id = 0, network = network, status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 1)
+                            botsList[1] = Bot(id = 1, network = network.deepClone(), status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 2)
+                            for (i in 2 until botsList.size) {
+                                botsList[i] = Bot(id = i, network = network.mutate(mutationRate), lineage = BotLineage.MUTATED_CLONE, mutationVariance = mutationRate, parentRank = 1)
                             }
                         }
                         _bots.value = trainer?.getBots() ?: emptyList()
@@ -482,6 +508,16 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
 
                     val historyPairs = history.map { Pair(it.generation, it.bestAccuracy) }
                     _fitnessHistory.value = historyPairs
+
+                    // Restore history log from last 10 entries
+                    historyLogEntries.clear()
+                    val recentHistory = history.takeLast(10)
+                    for (h in recentHistory) {
+                        historyLogEntries.add(
+                            String.format("Gen %d: Best %.1f%% | Avg %.2f", h.generation, h.bestAccuracy, h.avgFitness)
+                        )
+                    }
+                    _historyLog.value = historyLogEntries.joinToString("\n")
                 }
 
                 if (meta != null) {

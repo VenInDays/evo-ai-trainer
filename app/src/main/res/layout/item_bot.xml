@@ -2,18 +2,22 @@
 <com.google.android.material.card.MaterialCardView
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/cardBot"
     style="@style/BotCard"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:layout_margin="4dp"
-    app:cardBackgroundColor="@color/white_pure">
+    app:cardBackgroundColor="@color/white_pure"
+    app:strokeWidth="2dp"
+    app:strokeColor="@color/gray_200">
 
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:orientation="vertical"
-        android:padding="12dp">
+        android:padding="10dp">
 
+        <!-- Top row: indicator + name + fitness -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -25,7 +29,7 @@
                 android:layout_width="8dp"
                 android:layout_height="8dp"
                 android:background="@drawable/circle_indicator"
-                android:layout_marginEnd="8dp" />
+                android:layout_marginEnd="6dp" />
 
             <TextView
                 android:id="@+id/tvBotName"
@@ -34,7 +38,7 @@
                 android:layout_weight="1"
                 android:text="BOT-01"
                 android:textColor="@color/gray_800"
-                android:textSize="14sp"
+                android:textSize="13sp"
                 android:fontFamily="sans-serif-medium" />
 
             <TextView
@@ -43,27 +47,58 @@
                 android:layout_height="wrap_content"
                 android:text="0.00"
                 android:textColor="@color/gray_500"
-                android:textSize="13sp"
+                android:textSize="12sp"
                 android:fontFamily="sans-serif-medium" />
         </LinearLayout>
 
+        <!-- Lineage Badge -->
+        <TextView
+            android:id="@+id/tvLineageBadge"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="Clone"
+            android:textSize="9sp"
+            android:fontFamily="sans-serif-bold"
+            android:textAllCaps="true"
+            android:paddingStart="6dp"
+            android:paddingEnd="6dp"
+            android:paddingTop="2dp"
+            android:paddingBottom="2dp"
+            android:background="@drawable/badge_clone"
+            android:textColor="@color/white_pure" />
+
+        <!-- Progress bar -->
         <ProgressBar
             android:id="@+id/progressBotFitness"
             style="?android:attr/progressBarStyleHorizontal"
             android:layout_width="match_parent"
-            android:layout_height="4dp"
-            android:layout_marginTop="8dp"
+            android:layout_height="3dp"
+            android:layout_marginTop="6dp"
             android:progressDrawable="@drawable/progress_bot"
             android:max="100"
             android:progress="0" />
 
+        <!-- Status row -->
         <TextView
             android:id="@+id/tvBotStatus"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp"
+            android:layout_marginTop="3dp"
             android:text="@string/status_ready"
             android:textColor="@color/gray_500"
-            android:textSize="11sp" />
+            android:textSize="10sp" />
+
+        <!-- Mutation variance display (for clones) -->
+        <TextView
+            android:id="@+id/tvMutationVariance"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text=""
+            android:textColor="@color/slate_blue_training"
+            android:textSize="9sp"
+            android:fontFamily="sans-serif-medium"
+            android:visibility="gone" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

@@ -2,7 +2,6 @@ package com.evoai.trainer.data
 
 import androidx.room.Entity
 import androidx.room.PrimaryKey
-import androidx.room.TypeConverters
 
 /**
  * Room entity for storing BOT brain data (weights/models).

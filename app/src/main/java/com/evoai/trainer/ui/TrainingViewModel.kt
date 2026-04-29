@@ -1,7 +1,6 @@
 package com.evoai.trainer.ui
 
 import android.app.Application
-import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
@@ -215,7 +214,9 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             stopTraining()
             withContext(Dispatchers.IO) {
-                db.botDao().clearAll()
+                db.botDao().deleteAllBots()
+                db.botDao().deleteAllHistory()
+                db.botDao().deleteDatasetMeta()
             }
             trainer = null
             dataset = emptyList()

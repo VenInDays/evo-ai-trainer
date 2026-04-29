@@ -33,7 +33,4 @@ interface BotDao {
 
     @Query("DELETE FROM dataset_meta")
     suspend fun deleteDatasetMeta()
-
-    @Query("DELETE FROM bots; DELETE FROM training_history; DELETE FROM dataset_meta;")
-    suspend fun clearAll()
 }

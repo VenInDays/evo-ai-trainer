@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Brain/AI icon -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,30 C44,30 36,38 36,48 C36,54 39,59 44,62 L44,72 C44,74 46,76 48,76 L60,76 C62,76 64,74 64,72 L64,62 C69,59 72,54 72,48 C72,38 64,30 54,30 Z M48,68 L48,64 L60,64 L60,68 L48,68 Z M54,58 C48,58 44,54 44,48 C44,42 48,38 54,38 C60,38 64,42 64,48 C64,54 60,58 54,58 Z" />
+
+    <!-- Neural connections dots -->
+    <path
+        android:fillColor="#2ECC71"
+        android:pathData="M48,48 m-2,0 a2,2 0,1 1,4 0 a2,2 0,1 1,-4 0" />
+    <path
+        android:fillColor="#5B7FFF"
+        android:pathData="M58,46 m-2,0 a2,2 0,1 1,4 0 a2,2 0,1 1,-4 0" />
+    <path
+        android:fillColor="#2ECC71"
+        android:pathData="M54,54 m-2,0 a2,2 0,1 1,4 0 a2,2 0,1 1,-4 0" />
+</vector>

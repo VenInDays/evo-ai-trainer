@@ -307,11 +307,11 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                     history.add(Pair(gen, acc))
                     _fitnessHistory.postValue(history.toList())
 
-                    // V4: Update history log (last 10 generations) with loss info
-                    val avgLoss = currentTrainer.getBots()
-                        .filter { it.loss < Float.MAX_VALUE }
-                        .map { it.loss }
-                        .average().toFloat()
+                    // V4 FIX: Use getLastGenAvgLoss() from trainer — computed from EVALUATED bots
+                    // BEFORE new generation replaces them. The old approach was broken because
+                    // getBots() returns NEW unevaluated bots with loss=Float.MAX_VALUE,
+                    // causing .average() on empty list → NaN → SQLite NOT NULL constraint failure.
+                    val avgLoss = currentTrainer.getLastGenAvgLoss()
                     val logEntry = String.format(
                         "Gen %d: Val %.1f%% | Loss %.3f | Decay %.3f | Stag %d",
                         gen, acc, avgLoss, currentTrainer.getDecayingMutationRate(), stagnant

@@ -69,6 +69,9 @@ class GeneticTrainer(
     // V4: Latest confusion matrix
     private var lastConfusionMatrix: TeacherBot.EvaluationResult? = null
 
+    // V4: Average loss from the LAST evaluated generation (computed before new bots are created)
+    private var lastGenAvgLoss: Float = 0f
+
     // Callbacks
     var onGenerationComplete: ((gen: Int, bestAcc: Float, avgFitness: Float, bots: List<Bot>) -> Unit)? = null
     var onAutoSave: ((networks: List<NeuralNetwork>, gen: Int, acc: Float) -> Unit)? = null
@@ -101,6 +104,7 @@ class GeneticTrainer(
     fun getActiveMutationRate(): Float = activeMutationRate
     fun getDecayingMutationRate(): Float = decayingMutationRate
     fun getConfusionMatrix(): TeacherBot.EvaluationResult? = lastConfusionMatrix
+    fun getLastGenAvgLoss(): Float = lastGenAvgLoss
 
     /**
      * V4: Add a hard example (from Manual Override) for priority training.
@@ -248,6 +252,14 @@ class GeneticTrainer(
 
         val avgFitness = getBots().map { it.fitness }.average().toFloat()
 
+        // V4: Compute avgLoss from EVALUATED bots BEFORE they are replaced by new generation
+        // This prevents NaN from unevaluated new bots that have loss=Float.MAX_VALUE
+        lastGenAvgLoss = getBots()
+            .filter { it.loss.isFinite() && it.loss < Float.MAX_VALUE }
+            .map { it.loss }
+            .average()
+            .let { if (it.isNaN()) 0f else it.toFloat() }
+
         // Step 2: THE EXECUTION — Sort by compositeScore (accuracy + loss tiebreaker)
         val sortedBots = synchronized(bots) {
             bots.sortByDescending { it.compositeScore() }
@@ -314,9 +326,15 @@ class GeneticTrainer(
         val newBots = mutableListOf<Bot>()
 
         // V3/V4: Retain Top 2 as LEGACY survivors (with jitter if applicable)
+        // V4 FIX: Carry over fitness/accuracy/loss/valAccuracy to LEGACY bots so
+        // getBots() returns meaningful metrics even before next evaluation
         newBots.add(Bot(
             id = 0,
             network = jitteredElite1.deepClone(),
+            fitness = elite1.fitness,
+            accuracy = elite1.accuracy,
+            valAccuracy = elite1.valAccuracy,
+            loss = elite1.loss,
             status = BotStatus.READY,
             lineage = BotLineage.LEGACY,
             parentRank = 1,
@@ -327,6 +345,10 @@ class GeneticTrainer(
         newBots.add(Bot(
             id = 1,
             network = jitteredElite2.deepClone(),
+            fitness = elite2.fitness,
+            accuracy = elite2.accuracy,
+            valAccuracy = elite2.valAccuracy,
+            loss = elite2.loss,
             status = BotStatus.READY,
             lineage = BotLineage.LEGACY,
             parentRank = 2,

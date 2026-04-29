@@ -74,17 +74,19 @@ jobs:
           body: |
             ## EvoAI Trainer v${{ steps.version.outputs.version }}
 
-            ### What's New
-            - **Top-2 Elite Retention**: Best 2 models survive each generation
-            - **8 Mutated Clones**: 4 clones from each Elite with mutation variance tracking
-            - **Model Pedigree Badges**: 👑 Elite, 🧬 Clone, ⚠️ Reset indicators
-            - **Stagnation Tracking**: Counter for generations without improvement
-            - **Live History Log**: Scrollable console showing last 10 generations
-            - **Target Accuracy Slider**: Configurable 10-100% stop condition
-            - **Model Export/Import**: .model (inference) and .ckpt (full state) files
-            - **Live Testing Module**: Gallery image → prediction with confidence
-            - **Auto-Save**: Best model checkpoint every 5 generations
-            - **Parallel Training**: Kotlin Coroutines Dispatchers.Default
+            ### What's New in V3.0.0
+            - **Hard-Core Evolution Loop**: Top 2 survive, 8 are purged, 8 clones repopulate
+            - **Dynamic Lineage**: Children can outperform parents — no model is safe
+            - **Model Identity Naming**: "Model [ID] Gen [Generation]" family tracking
+            - **LEGACY/CLONE Badges**: Gold LEGACY for survivors, GEN[X] CLONE for offspring
+            - **Sparkline Charts**: Tiny fitness trend graphs on each model card
+            - **Gaussian Mutation**: Natural distribution weight perturbation (0.01-0.50 range)
+            - **Hyper-Mutation**: Auto-doubles mutation rate after 15 stagnant generations
+            - **Global Best Dashboard**: All-time highest accuracy ever recorded
+            - **Active Mutation Rate**: Shows current rate including auto-boosts
+            - **Top-2 Persistence**: Best 2 models saved every generation (crash-proof)
+            - **Test Lab**: Gallery photo prediction with confidence display
+            - **Export Champion .model / Export State .ckpt**: Full file export
 
             ### Installation
             1. Download the APK below

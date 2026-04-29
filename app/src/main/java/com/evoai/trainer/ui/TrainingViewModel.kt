@@ -69,13 +69,25 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
     private val _fitnessHistory = MutableLiveData<List<Pair<Int, Float>>>(emptyList())
     val fitnessHistory: LiveData<List<Pair<Int, Float>>> = _fitnessHistory
 
-    // v2.0: Stagnant generations counter
+    // V3: Stagnant generations counter
     private val _stagnantGenerations = MutableLiveData(0)
     val stagnantGenerations: LiveData<Int> = _stagnantGenerations
 
-    // v2.0: History log text (last 10 generations)
+    // V3: History log text (last 10 generations)
     private val _historyLog = MutableLiveData("")
     val historyLog: LiveData<String> = _historyLog
+
+    // V3: Global Best (all-time highest accuracy ever recorded)
+    private val _globalBest = MutableLiveData(0f)
+    val globalBest: LiveData<Float> = _globalBest
+
+    // V3: Active Mutation Rate (including auto-boosts from hyper-mutation)
+    private val _activeMutRate = MutableLiveData(0.05f)
+    val activeMutRate: LiveData<Float> = _activeMutRate
+
+    // V3: Hyper-mutation notification
+    private val _hyperMutationEvent = MutableLiveData<String?>(null)
+    val hyperMutationEvent: LiveData<String?> = _hyperMutationEvent
 
     // Inference test result
     private val _inferenceResult = MutableLiveData<InferenceResult?>(null)
@@ -161,22 +173,30 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
         _isTraining.value = true
         _trainingComplete.value = false
 
-        // Set up auto-save callback
-        currentTrainer.onAutoSave = { bestNetwork, gen, acc ->
+        // V3: Auto-save callback — save Top 2 models every generation
+        currentTrainer.onAutoSave = { networks, gen, acc ->
             viewModelScope.launch {
                 withContext(Dispatchers.IO) {
-                    db.botDao().insertCheckpoint(
-                        BestModelCheckpointEntity(
-                            generation = gen,
-                            serializedNetwork = bestNetwork.serialize(),
-                            accuracy = acc,
-                            fitness = 0f,
-                            mutationRate = this@TrainingViewModel.mutationRate,
-                            targetAccuracy = this@TrainingViewModel.targetAccuracy
+                    // Save the champion (best network)
+                    if (networks.isNotEmpty()) {
+                        db.botDao().insertCheckpoint(
+                            BestModelCheckpointEntity(
+                                generation = gen,
+                                serializedNetwork = networks[0].serialize(),
+                                accuracy = acc,
+                                fitness = 0f,
+                                mutationRate = this@TrainingViewModel.mutationRate,
+                                targetAccuracy = this@TrainingViewModel.targetAccuracy
+                            )
                         )
-                    )
+                    }
                 }
             }
+        }
+
+        // V3: Hyper-mutation callback
+        currentTrainer.onHyperMutation = { gen, boostedRate ->
+            _hyperMutationEvent.postValue(String.format("HYPER-MUTATION at Gen %d! Rate: %.2f", gen, boostedRate))
         }
 
         viewModelScope.launch {
@@ -203,6 +223,8 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                     _bestAccuracy.postValue(acc)
                     _avgFitness.postValue(avg)
                     _stagnantGenerations.postValue(stagnant)
+                    _globalBest.postValue(currentTrainer.getAllTimeBestAccuracy())
+                    _activeMutRate.postValue(currentTrainer.getActiveMutationRate())
                     _bots.postValue(currentTrainer.getBots())
 
                     history.add(Pair(gen, acc))
@@ -279,6 +301,8 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
             _bestAccuracy.value = 0f
             _avgFitness.value = 0f
             _stagnantGenerations.value = 0
+            _globalBest.value = 0f
+            _activeMutRate.value = 0.05f
             _bots.value = emptyList()
             _datasetInfo.value = null
             _fitnessHistory.value = emptyList()
@@ -399,10 +423,10 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                             initializePopulation()
                             // Replace first 2 bots with the loaded network as elites
                             val botsList = getBots().toMutableList()
-                            botsList[0] = Bot(id = 0, network = network, fitness = checkpoint.bestAccuracy / 100f, accuracy = checkpoint.bestAccuracy, status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 1)
-                            botsList[1] = Bot(id = 1, network = network.deepClone(), fitness = checkpoint.bestAccuracy / 100f, accuracy = checkpoint.bestAccuracy, status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 2)
+                            botsList[0] = Bot(id = 0, network = network, fitness = checkpoint.bestAccuracy / 100f, accuracy = checkpoint.bestAccuracy, status = BotStatus.BEST, lineage = BotLineage.LEGACY, parentRank = 1)
+                            botsList[1] = Bot(id = 1, network = network.deepClone(), fitness = checkpoint.bestAccuracy / 100f, accuracy = checkpoint.bestAccuracy, status = BotStatus.BEST, lineage = BotLineage.LEGACY, parentRank = 2)
                             for (i in 2 until botsList.size) {
-                                botsList[i] = Bot(id = i, network = network.mutate(mutationRate), lineage = BotLineage.MUTATED_CLONE, mutationVariance = mutationRate, parentRank = 1)
+                                botsList[i] = Bot(id = i, network = network.mutateGaussian(mutationRate), lineage = BotLineage.CLONE, mutationVariance = mutationRate, parentRank = 1)
                             }
                         }
                         _bots.value = trainer?.getBots() ?: emptyList()
@@ -417,10 +441,10 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                             setTargetAccuracy(targetAccuracy)
                             initializePopulation()
                             val botsList = getBots().toMutableList()
-                            botsList[0] = Bot(id = 0, network = network, status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 1)
-                            botsList[1] = Bot(id = 1, network = network.deepClone(), status = BotStatus.BEST, lineage = BotLineage.ELITE_PARENT, parentRank = 2)
+                            botsList[0] = Bot(id = 0, network = network, status = BotStatus.BEST, lineage = BotLineage.LEGACY, parentRank = 1)
+                            botsList[1] = Bot(id = 1, network = network.deepClone(), status = BotStatus.BEST, lineage = BotLineage.LEGACY, parentRank = 2)
                             for (i in 2 until botsList.size) {
-                                botsList[i] = Bot(id = i, network = network.mutate(mutationRate), lineage = BotLineage.MUTATED_CLONE, mutationVariance = mutationRate, parentRank = 1)
+                                botsList[i] = Bot(id = i, network = network.mutateGaussian(mutationRate), lineage = BotLineage.CLONE, mutationVariance = mutationRate, parentRank = 1)
                             }
                         }
                         _bots.value = trainer?.getBots() ?: emptyList()

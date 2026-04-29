@@ -17,7 +17,7 @@
         android:orientation="vertical"
         android:padding="10dp">
 
-        <!-- Top row: indicator + name + fitness -->
+        <!-- Row 1: Indicator + Model Name + Accuracy -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -36,29 +36,31 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="BOT-01"
+                android:text="Model 1 Gen 0"
                 android:textColor="@color/gray_800"
-                android:textSize="13sp"
-                android:fontFamily="sans-serif-medium" />
+                android:textSize="11sp"
+                android:fontFamily="sans-serif-medium"
+                android:maxLines="1"
+                android:ellipsize="end" />
 
             <TextView
-                android:id="@+id/tvBotFitness"
+                android:id="@+id/tvBotAccuracy"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="0.00"
-                android:textColor="@color/gray_500"
+                android:text="0.0%"
+                android:textColor="@color/gray_600"
                 android:textSize="12sp"
-                android:fontFamily="sans-serif-medium" />
+                android:fontFamily="sans-serif-bold" />
         </LinearLayout>
 
-        <!-- Lineage Badge -->
+        <!-- Row 2: Lineage Badge -->
         <TextView
             android:id="@+id/tvLineageBadge"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp"
-            android:text="Clone"
-            android:textSize="9sp"
+            android:text="CLONE"
+            android:textSize="8sp"
             android:fontFamily="sans-serif-bold"
             android:textAllCaps="true"
             android:paddingStart="6dp"
@@ -68,37 +70,39 @@
             android:background="@drawable/badge_clone"
             android:textColor="@color/white_pure" />
 
-        <!-- Progress bar -->
-        <ProgressBar
-            android:id="@+id/progressBotFitness"
-            style="?android:attr/progressBarStyleHorizontal"
+        <!-- Row 3: Status + Mutation info -->
+        <LinearLayout
             android:layout_width="match_parent"
-            android:layout_height="3dp"
-            android:layout_marginTop="6dp"
-            android:progressDrawable="@drawable/progress_bot"
-            android:max="100"
-            android:progress="0" />
-
-        <!-- Status row -->
-        <TextView
-            android:id="@+id/tvBotStatus"
-            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_marginTop="3dp"
-            android:text="@string/status_ready"
-            android:textColor="@color/gray_500"
-            android:textSize="10sp" />
+            android:layout_marginTop="4dp"
+            android:orientation="horizontal">
 
-        <!-- Mutation variance display (for clones) -->
-        <TextView
-            android:id="@+id/tvMutationVariance"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="1dp"
-            android:text=""
-            android:textColor="@color/slate_blue_training"
-            android:textSize="9sp"
-            android:fontFamily="sans-serif-medium"
-            android:visibility="gone" />
+            <TextView
+                android:id="@+id/tvBotStatus"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="Ready"
+                android:textColor="@color/gray_500"
+                android:textSize="9sp" />
+
+            <TextView
+                android:id="@+id/tvMutationVariance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text=""
+                android:textColor="@color/slate_blue_training"
+                android:textSize="8sp"
+                android:fontFamily="sans-serif-medium"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <!-- Row 4: Sparkline Chart (last 5 fitness scores) -->
+        <com.evoai.trainer.ui.widget.SparklineView
+            android:id="@+id/sparklineFitness"
+            android:layout_width="match_parent"
+            android:layout_height="28dp"
+            android:layout_marginTop="4dp" />
+
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

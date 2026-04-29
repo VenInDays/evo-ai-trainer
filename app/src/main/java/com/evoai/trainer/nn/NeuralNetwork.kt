@@ -3,6 +3,7 @@ package com.evoai.trainer.nn
 import com.google.gson.Gson
 import com.google.gson.annotations.SerializedName
 import kotlin.math.exp
+import kotlin.math.sqrt
 import kotlin.random.Random
 
 /**
@@ -128,6 +129,45 @@ class NeuralNetwork(
         }
 
         return clone
+    }
+
+    /**
+     * Create a mutated clone using Gaussian (normal distribution) perturbation.
+     * This produces more natural evolutionary drift compared to uniform random mutation.
+     * The mutationRate controls the standard deviation of the Gaussian shift.
+     * Used in V3 Evolution Engine for the "Breakthrough Kit" mutation.
+     */
+    fun mutateGaussian(mutationRate: Float): NeuralNetwork {
+        val clone = deepClone()
+
+        for (layerIdx in clone.weights.indices) {
+            val w = clone.weights[layerIdx]
+            val b = clone.biases[layerIdx]
+
+            for (j in w.indices) {
+                for (k in w[j].indices) {
+                    if (rng.nextFloat() < mutationRate) {
+                        w[j][k] += gaussianRandom() * mutationRate
+                    }
+                }
+                if (rng.nextFloat() < mutationRate) {
+                    b[j] += gaussianRandom() * mutationRate
+                }
+            }
+        }
+
+        return clone
+    }
+
+    /**
+     * Box-Muller transform to generate Gaussian (normal) random numbers.
+     * Mean = 0, Standard Deviation = 1.
+     */
+    private fun gaussianRandom(): Float {
+        val u1 = rng.nextFloat().coerceIn(1e-10f, 1f)
+        val u2 = rng.nextFloat()
+        return (sqrt(-2f * kotlin.math.ln(u1.toDouble())).toFloat() *
+                kotlin.math.cos(2f * Math.PI * u2).toFloat())
     }
 
     /**

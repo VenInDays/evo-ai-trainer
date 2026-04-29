@@ -31,11 +31,12 @@ class MainActivity : AppCompatActivity() {
 
     private val viewModel: TrainingViewModel by viewModels()
 
-    // Dashboard views
+    // V3: Dashboard views
     private lateinit var tvGenerationBig: TextView
     private lateinit var tvStagnant: TextView
     private lateinit var tvTargetIndicator: TextView
-    private lateinit var tvAccuracy: TextView
+    private lateinit var tvGlobalBest: TextView
+    private lateinit var tvActiveMutRate: TextView
     private lateinit var tvFitness: TextView
     private lateinit var tvDatasetStatus: TextView
     private lateinit var tvLikesCount: TextView
@@ -61,7 +62,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvInferenceLabel: TextView
     private lateinit var tvInferenceConfidence: TextView
 
-    // v2.0: History Log views
+    // V3: History Log views
     private lateinit var tvHistoryLog: TextView
     private lateinit var scrollHistoryLog: ScrollView
 
@@ -104,12 +105,13 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        // v2.0: Prominent generation dashboard
+        // V3: Generation dashboard
         tvGenerationBig = findViewById(R.id.tvGenerationBig)
         tvStagnant = findViewById(R.id.tvStagnant)
         tvTargetIndicator = findViewById(R.id.tvTargetIndicator)
 
-        tvAccuracy = findViewById(R.id.tvAccuracy)
+        tvGlobalBest = findViewById(R.id.tvGlobalBest)
+        tvActiveMutRate = findViewById(R.id.tvActiveMutRate)
         tvFitness = findViewById(R.id.tvFitness)
         tvDatasetStatus = findViewById(R.id.tvDatasetStatus)
         tvLikesCount = findViewById(R.id.tvLikesCount)
@@ -135,7 +137,7 @@ class MainActivity : AppCompatActivity() {
         tvInferenceLabel = findViewById(R.id.tvInferenceLabel)
         tvInferenceConfidence = findViewById(R.id.tvInferenceConfidence)
 
-        // v2.0: History log
+        // V3: History log
         tvHistoryLog = findViewById(R.id.tvHistoryLog)
         scrollHistoryLog = findViewById(R.id.scrollHistoryLog)
     }
@@ -230,11 +232,10 @@ class MainActivity : AppCompatActivity() {
             tvGenerationBig.text = gen.toString()
         }
 
-        // v2.0: Stagnant generations counter
+        // V3: Stagnant generations counter
         viewModel.stagnantGenerations.observe(this) { stagnant ->
             tvStagnant.text = stagnant.toString()
-            // Highlight stagnant counter with warning color when high
-            if (stagnant > 10) {
+            if (stagnant >= 15) {
                 tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.error_red))
             } else if (stagnant > 5) {
                 tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
@@ -243,8 +244,17 @@ class MainActivity : AppCompatActivity() {
             }
         }
 
+        // V3: Global Best (all-time highest)
+        viewModel.globalBest.observe(this) { best ->
+            tvGlobalBest.text = String.format("%.1f%%", best)
+        }
+
+        // V3: Active Mutation Rate (including hyper-mutation boosts)
+        viewModel.activeMutRate.observe(this) { rate ->
+            tvActiveMutRate.text = String.format("%.2f", rate)
+        }
+
         viewModel.bestAccuracy.observe(this) { acc ->
-            tvAccuracy.text = String.format("%.1f%%", acc)
             progressTraining.progress = acc.toInt()
         }
 
@@ -293,12 +303,19 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.fitnessHistory.observe(this) { history -> updateChart(history) }
 
-        // v2.0: History Log observer
+        // V3: History Log observer
         viewModel.historyLog.observe(this) { logText ->
             tvHistoryLog.text = logText.ifEmpty { getString(R.string.history_log_empty) }
             // Auto-scroll to bottom
             scrollHistoryLog.post {
                 scrollHistoryLog.fullScroll(ScrollView.FOCUS_DOWN)
+            }
+        }
+
+        // V3: Hyper-mutation event
+        viewModel.hyperMutationEvent.observe(this) { event ->
+            event?.let {
+                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
             }
         }
 

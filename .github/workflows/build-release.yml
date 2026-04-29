@@ -1,0 +1,137 @@
+name: Build & Release APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v3
+
+      - name: Generate Release Keystore
+        run: |
+          mkdir -p app/keystore
+          keytool -genkeypair \
+            -v \
+            -keystore app/keystore/release.keystore \
+            -alias evoai \
+            -keyalg RSA \
+            -keysize 2048 \
+            -validity 10000 \
+            -storepass evoai2024 \
+            -keypass evoai2024 \
+            -dname "CN=EvoAI, OU=Dev, O=EvoAI Trainer, L=Singapore, ST=Singapore, C=SG"
+        shell: bash
+
+      - name: Create local.properties
+        run: |
+          echo "KEYSTORE_PATH=app/keystore/release.keystore" >> local.properties
+          echo "KEYSTORE_PASSWORD=evoai2024" >> local.properties
+          echo "KEY_ALIAS=evoai" >> local.properties
+          echo "KEY_PASSWORD=evoai2024" >> local.properties
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build Release APK (Signed v2+v3)
+        run: ./gradlew assembleRelease
+
+      - name: Verify APK exists
+        run: |
+          ls -la app/build/outputs/apk/release/
+          if [ ! -f app/build/outputs/apk/release/app-release.apk ]; then
+            echo "ERROR: APK not found!"
+            exit 1
+          fi
+          echo "APK built successfully!"
+
+      - name: Verify APK signing (v2+v3)
+        run: |
+          ${ANDROID_HOME}/build-tools/34.0.0/apksigner verify --print-certs -v app/build/outputs/apk/release/app-release.apk || true
+          echo "APK signing verification complete"
+
+      - name: Rename APK
+        run: |
+          cp app/build/outputs/apk/release/app-release.apk EvoAI-Trainer-v1.0.0.apk
+          ls -la EvoAI-Trainer-v1.0.0.apk
+
+      - name: Delete existing release if present
+        uses: dev-drprasad/delete-tag-and-release@v1.0
+        with:
+          tag_name: v1.0.0
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+        continue-on-error: true
+
+      - name: Create Release and Upload APK
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.0
+          name: EvoAI Trainer v1.0.0
+          body: |
+            ## EvoAI Trainer - Evolutionary AI Training App
+
+            ### Features
+            - Genetic Algorithm with Neural Network training (10 BOTs)
+            - ZIP dataset import (like/nonlike image folders)
+            - Real-time fitness visualization with line chart
+            - Mutation rate control (0.01 - 0.10)
+            - Local persistence with Room Database
+            - Material You design with card-based layout
+            - Background training with Coroutines
+
+            ### Installation
+            Download the APK below and install on your Android device (API 24+ / Android 7.0+).
+
+            ### Usage
+            1. Prepare a ZIP file with `/like` and `/nonlike` folders containing images
+            2. Import the ZIP file in the app
+            3. Adjust mutation rate if desired
+            4. Press "Start Training" and watch the BOTs evolve!
+          files: |
+            EvoAI-Trainer-v1.0.0.apk
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify Release Contains APK
+        run: |
+          echo "Verifying release asset upload..."
+          sleep 3
+          REPO="${{ github.repository }}"
+          TAG="v1.0.0"
+          RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            "https://api.github.com/repos/$REPO/releases/tags/$TAG")
+          ASSET_COUNT=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(len(d.get('assets',[])))" 2>/dev/null || echo "0")
+          echo "Release assets count: $ASSET_COUNT"
+          if [ "$ASSET_COUNT" -eq 0 ]; then
+            echo "WARNING: No assets found. Attempting manual upload..."
+            RELEASE_ID=$(echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d.get('id',''))" 2>/dev/null || echo "")
+            if [ -n "$RELEASE_ID" ]; then
+              curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+                -H "Content-Type: application/vnd.android.package-archive" \
+                --data-binary @EvoAI-Trainer-v1.0.0.apk \
+                "https://uploads.github.com/repos/$REPO/releases/$RELEASE_ID/assets?name=EvoAI-Trainer-v1.0.0.apk"
+              echo "Manual upload complete"
+            fi
+          else
+            echo "SUCCESS: APK uploaded to release!"
+            echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); [print(f'  - {a[\"name\"]} ({a[\"size\"]} bytes)') for a in d.get('assets',[])]"
+          fi

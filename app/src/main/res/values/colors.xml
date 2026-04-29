@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Primary Palette -->
+    <color name="navy_primary">#1B2A4A</color>
+    <color name="navy_dark">#0F1B33</color>
+    <color name="navy_light">#2D4A7A</color>
+
+    <!-- Accent Colors -->
+    <color name="emerald_success">#2ECC71</color>
+    <color name="emerald_dark">#27AE60</color>
+    <color name="slate_blue_training">#5B7FFF</color>
+    <color name="slate_blue_dark">#4A6AE5</color>
+
+    <!-- Neutrals -->
+    <color name="white_pure">#FFFFFF</color>
+    <color name="gray_50">#F8F9FA</color>
+    <color name="gray_100">#F1F3F5</color>
+    <color name="gray_200">#E9ECEF</color>
+    <color name="gray_300">#DEE2E6</color>
+    <color name="gray_400">#CED4DA</color>
+    <color name="gray_500">#ADB5BD</color>
+    <color name="gray_600">#6C757D</color>
+    <color name="gray_700">#495057</color>
+    <color name="gray_800">#343A40</color>
+    <color name="gray_900">#212529</color>
+
+    <!-- Status -->
+    <color name="error_red">#E74C3C</color>
+    <color name="warning_amber">#F39C12</color>
+    <color name="info_blue">#3498DB</color>
+
+    <!-- Surface -->
+    <color name="card_background">#FFFFFF</color>
+    <color name="surface_variant">#F1F3F5</color>
+
+    <!-- Progress -->
+    <color name="progress_background">#E9ECEF</color>
+    <color name="bot_idle">#DEE2E6</color>
+    <color name="bot_active">#5B7FFF</color>
+    <color name="bot_best">#2ECC71</color>
+</resources>

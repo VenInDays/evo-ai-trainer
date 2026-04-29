@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="Theme.EvoAITrainer" parent="Theme.Material3.Light.NoActionBar">
+        <item name="colorPrimary">@color/navy_primary</item>
+        <item name="colorOnPrimary">@color/white_pure</item>
+        <item name="colorPrimaryContainer">@color/navy_light</item>
+        <item name="colorOnPrimaryContainer">@color/white_pure</item>
+        <item name="colorSecondary">@color/slate_blue_training</item>
+        <item name="colorOnSecondary">@color/white_pure</item>
+        <item name="colorTertiary">@color/emerald_success</item>
+        <item name="colorSurface">@color/white_pure</item>
+        <item name="colorOnSurface">@color/gray_900</item>
+        <item name="colorSurfaceVariant">@color/surface_variant</item>
+        <item name="colorOnSurfaceVariant">@color/gray_700</item>
+        <item name="colorError">@color/error_red</item>
+        <item name="android:statusBarColor">@color/navy_primary</item>
+        <item name="android:windowBackground">@color/gray_50</item>
+    </style>
+
+    <style name="CardViewStyle" parent="Widget.Material3.CardView.Filled">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">2dp</item>
+        <item name="cardBackgroundColor">@color/card_background</item>
+    </style>
+
+    <style name="DashboardCard" parent="CardViewStyle">
+        <item name="cardCornerRadius">20dp</item>
+        <item name="cardElevation">4dp</item>
+    </style>
+
+    <style name="BotCard" parent="CardViewStyle">
+        <item name="cardCornerRadius">16dp</item>
+        <item name="cardElevation">2dp</item>
+    </style>
+
+    <style name="ControlButton" parent="Widget.Material3.Button">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="android:textSize">14sp</item>
+    </style>
+
+    <style name="ControlButton.Primary" parent="ControlButton">
+        <item name="backgroundTint">@color/navy_primary</item>
+        <item name="android:textColor">@color/white_pure</item>
+    </style>
+
+    <style name="ControlButton.Success" parent="ControlButton">
+        <item name="backgroundTint">@color/emerald_success</item>
+        <item name="android:textColor">@color/white_pure</item>
+    </style>
+
+    <style name="ControlButton.Danger" parent="ControlButton">
+        <item name="backgroundTint">@color/error_red</item>
+        <item name="android:textColor">@color/white_pure</item>
+    </style>
+
+    <style name="ControlButton.Outlined" parent="Widget.Material3.Button.OutlinedButton">
+        <item name="cornerRadius">12dp</item>
+        <item name="android:textAllCaps">false</item>
+        <item name="android:fontFamily">sans-serif-medium</item>
+        <item name="strokeColor">@color/gray_300</item>
+        <item name="android:textColor">@color/gray_700</item>
+    </style>
+</resources>

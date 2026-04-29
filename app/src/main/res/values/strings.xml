@@ -1,0 +1,24 @@
+<resources>
+    <string name="app_name">EvoAI Trainer</string>
+    <string name="dashboard_title">Evolution Dashboard</string>
+    <string name="generation_label">Generation</string>
+    <string name="accuracy_label">Best Accuracy</string>
+    <string name="fitness_label">Avg Fitness</string>
+    <string name="import_zip">Import ZIP</string>
+    <string name="start_training">Start Training</string>
+    <string name="stop_training">Stop Training</string>
+    <string name="reset_storage">Reset Storage</string>
+    <string name="bot_prefix">BOT</string>
+    <string name="status_ready">Ready</string>
+    <string name="status_training">Training…</string>
+    <string name="status_complete">Complete!</string>
+    <string name="status_error">Error</string>
+    <string name="no_dataset">No dataset loaded</string>
+    <string name="dataset_loaded">Dataset loaded: %d samples</string>
+    <string name="training_progress">Generation %d • Accuracy %.1f%%</string>
+    <string name="mutation_rate_label">Mutation Rate</string>
+    <string name="fitness_graph_title">Fitness Over Generations</string>
+    <string name="target_reached">Target accuracy reached!</string>
+    <string name="likes_count">Like: %d</string>
+    <string name="nonlikes_count">Non-like: %d</string>
+</resources>

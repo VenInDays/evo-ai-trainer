@@ -43,23 +43,33 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
         private val tvMutationVariance: TextView = itemView.findViewById(R.id.tvMutationVariance)
         private val sparklineFitness: SparklineView = itemView.findViewById(R.id.sparklineFitness)
         private val viewBotIndicator: View = itemView.findViewById(R.id.viewBotIndicator)
+        private val tvBotLoss: TextView = itemView.findViewById(R.id.tvBotLoss)
 
         fun bind(bot: Bot) {
-            // V3: Display name = "Model [familyId] Gen [generationBorn]"
+            // V4: Display name = "Model [familyId] Gen [generationBorn]"
             tvBotName.text = bot.displayName
 
-            // V3: Show accuracy prominently
-            tvBotAccuracy.text = String.format("%.1f%%", bot.accuracy)
+            // V4: Show accuracy prominently (use validation accuracy if available)
+            val displayAcc = if (bot.valAccuracy > 0f) bot.valAccuracy else bot.accuracy
+            tvBotAccuracy.text = String.format("%.1f%%", displayAcc)
 
-            // V3: Sparkline chart with last 5 fitness scores
+            // V4: Show loss (lower = more confident)
+            if (bot.loss < Float.MAX_VALUE && bot.loss > 0f) {
+                tvBotLoss.text = String.format("L%.3f", bot.loss)
+                tvBotLoss.visibility = View.VISIBLE
+            } else {
+                tvBotLoss.visibility = View.GONE
+            }
+
+            // Sparkline chart with last 5 fitness scores
             val sparklineData = bot.getSparklineData()
             sparklineFitness.setData(sparklineData)
             sparklineFitness.setLineColor(getLineageColor(bot))
 
-            // ===== Lineage Badge & Card Styling =====
+            // Lineage Badge & Card Styling
             setupLineageDisplay(bot)
 
-            // ===== Status Styling =====
+            // Status Styling
             when (bot.status) {
                 BotStatus.READY -> {
                     tvBotStatus.text = "Ready"
@@ -72,12 +82,12 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
                     viewBotIndicator.background.setTint(ContextCompat.getColor(itemView.context, R.color.slate_blue_training))
                 }
                 BotStatus.EVALUATED -> {
-                    tvBotStatus.text = String.format("Acc: %.1f%%", bot.accuracy)
+                    tvBotStatus.text = String.format("Acc: %.1f%%", displayAcc)
                     tvBotStatus.setTextColor(ContextCompat.getColor(itemView.context, R.color.gray_600))
                     viewBotIndicator.background.setTint(getLineageColor(bot))
                 }
                 BotStatus.BEST -> {
-                    tvBotStatus.text = String.format("Champion %.1f%%", bot.accuracy)
+                    tvBotStatus.text = String.format("Champion %.1f%%", displayAcc)
                     tvBotStatus.setTextColor(ContextCompat.getColor(itemView.context, R.color.emerald_success))
                     viewBotIndicator.background.setTint(ContextCompat.getColor(itemView.context, R.color.emerald_success))
                 }
@@ -92,31 +102,24 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
         private fun setupLineageDisplay(bot: Bot) {
             when (bot.lineage) {
                 BotLineage.LEGACY -> {
-                    // V3: Gold badge + "LEGACY" label
                     tvLineageBadge.text = "LEGACY"
                     tvLineageBadge.setBackgroundResource(R.drawable.badge_elite)
                     tvLineageBadge.setTextColor(ContextCompat.getColor(itemView.context, R.color.white_pure))
                     tvLineageBadge.visibility = View.VISIBLE
 
-                    // Gold card border
                     cardBot.strokeColor = ContextCompat.getColor(itemView.context, R.color.elite_gold)
                     cardBot.strokeWidth = 3
-
-                    // Mutation variance hidden for legacies
                     tvMutationVariance.visibility = View.GONE
                 }
                 BotLineage.CLONE -> {
-                    // V3: Blue badge + "GEN [X] CLONE" label
                     tvLineageBadge.text = String.format("GEN %d CLONE", bot.generationBorn)
                     tvLineageBadge.setBackgroundResource(R.drawable.badge_clone)
                     tvLineageBadge.setTextColor(ContextCompat.getColor(itemView.context, R.color.white_pure))
                     tvLineageBadge.visibility = View.VISIBLE
 
-                    // Blue card border
                     cardBot.strokeColor = ContextCompat.getColor(itemView.context, R.color.slate_blue_training)
                     cardBot.strokeWidth = 2
 
-                    // Show mutation variance
                     if (bot.mutationVariance > 0f) {
                         val parentLabel = if (bot.parentRank == 1) "A" else "B"
                         tvMutationVariance.text = String.format("\u03C3%.2f \u2190 M%s", bot.mutationVariance, parentLabel)
@@ -126,16 +129,13 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
                     }
                 }
                 BotLineage.RESET_RANDOM -> {
-                    // Amber badge + "RESET" label
                     tvLineageBadge.text = "RESET"
                     tvLineageBadge.setBackgroundResource(R.drawable.badge_reset)
                     tvLineageBadge.setTextColor(ContextCompat.getColor(itemView.context, R.color.white_pure))
                     tvLineageBadge.visibility = View.VISIBLE
 
-                    // Amber card border
                     cardBot.strokeColor = ContextCompat.getColor(itemView.context, R.color.warning_amber)
                     cardBot.strokeWidth = 2
-
                     tvMutationVariance.visibility = View.GONE
                 }
             }

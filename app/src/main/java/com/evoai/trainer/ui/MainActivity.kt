@@ -17,6 +17,7 @@ import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.evoai.trainer.R
+import com.evoai.trainer.ga.TeacherBot
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -31,16 +32,18 @@ class MainActivity : AppCompatActivity() {
 
     private val viewModel: TrainingViewModel by viewModels()
 
-    // V3: Dashboard views
+    // Dashboard views
     private lateinit var tvGenerationBig: TextView
     private lateinit var tvStagnant: TextView
     private lateinit var tvTargetIndicator: TextView
     private lateinit var tvGlobalBest: TextView
     private lateinit var tvActiveMutRate: TextView
+    private lateinit var tvDecayingMutRate: TextView
     private lateinit var tvFitness: TextView
     private lateinit var tvDatasetStatus: TextView
     private lateinit var tvLikesCount: TextView
     private lateinit var tvNonlikesCount: TextView
+    private lateinit var tvTrainValSplit: TextView
     private lateinit var tvMutationRate: TextView
     private lateinit var tvTargetAccuracy: TextView
     private lateinit var tvTrainingStatus: TextView
@@ -61,12 +64,30 @@ class MainActivity : AppCompatActivity() {
     private lateinit var viewInferenceIndicator: View
     private lateinit var tvInferenceLabel: TextView
     private lateinit var tvInferenceConfidence: TextView
+    private lateinit var progressConfidence: ProgressBar
+    private lateinit var tvUncertainBadge: TextView
+    private lateinit var layoutManualOverride: View
+    private lateinit var btnCorrectLike: MaterialButton
+    private lateinit var btnCorrectNonlike: MaterialButton
 
-    // V3: History Log views
+    // V4: Confusion Matrix views
+    private lateinit var cardConfusionMatrix: MaterialCardView
+    private lateinit var tvTP: TextView
+    private lateinit var tvFP: TextView
+    private lateinit var tvFN: TextView
+    private lateinit var tvTN: TextView
+    private lateinit var tvPrecision: TextView
+    private lateinit var tvRecall: TextView
+    private lateinit var tvF1: TextView
+
+    // History Log views
     private lateinit var tvHistoryLog: TextView
     private lateinit var scrollHistoryLog: ScrollView
 
     private val botAdapter = BotAdapter()
+
+    // Currently tested image URI (for Manual Override)
+    private var currentTestImageUri: Uri? = null
 
     // ZIP file picker
     private val zipPickerLauncher = registerForActivityResult(
@@ -76,7 +97,12 @@ class MainActivity : AppCompatActivity() {
     // Image picker for inference test
     private val imagePickerLauncher = registerForActivityResult(
         ActivityResultContracts.GetContent()
-    ) { uri: Uri? -> uri?.let { viewModel.testImage(it) } }
+    ) { uri: Uri? ->
+        uri?.let {
+            currentTestImageUri = it
+            viewModel.testImage(it)
+        }
+    }
 
     // Model file picker (.model / .ckpt)
     private val modelPickerLauncher = registerForActivityResult(
@@ -105,17 +131,19 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun initViews() {
-        // V3: Generation dashboard
+        // Generation dashboard
         tvGenerationBig = findViewById(R.id.tvGenerationBig)
         tvStagnant = findViewById(R.id.tvStagnant)
         tvTargetIndicator = findViewById(R.id.tvTargetIndicator)
 
         tvGlobalBest = findViewById(R.id.tvGlobalBest)
         tvActiveMutRate = findViewById(R.id.tvActiveMutRate)
+        tvDecayingMutRate = findViewById(R.id.tvDecayingMutRate)
         tvFitness = findViewById(R.id.tvFitness)
         tvDatasetStatus = findViewById(R.id.tvDatasetStatus)
         tvLikesCount = findViewById(R.id.tvLikesCount)
         tvNonlikesCount = findViewById(R.id.tvNonlikesCount)
+        tvTrainValSplit = findViewById(R.id.tvTrainValSplit)
         tvMutationRate = findViewById(R.id.tvMutationRate)
         tvTargetAccuracy = findViewById(R.id.tvTargetAccuracy)
         tvTrainingStatus = findViewById(R.id.tvTrainingStatus)
@@ -136,8 +164,23 @@ class MainActivity : AppCompatActivity() {
         viewInferenceIndicator = findViewById(R.id.viewInferenceIndicator)
         tvInferenceLabel = findViewById(R.id.tvInferenceLabel)
         tvInferenceConfidence = findViewById(R.id.tvInferenceConfidence)
+        progressConfidence = findViewById(R.id.progressConfidence)
+        tvUncertainBadge = findViewById(R.id.tvUncertainBadge)
+        layoutManualOverride = findViewById(R.id.layoutManualOverride)
+        btnCorrectLike = findViewById(R.id.btnCorrectLike)
+        btnCorrectNonlike = findViewById(R.id.btnCorrectNonlike)
 
-        // V3: History log
+        // V4: Confusion Matrix
+        cardConfusionMatrix = findViewById(R.id.cardConfusionMatrix)
+        tvTP = findViewById(R.id.tvTP)
+        tvFP = findViewById(R.id.tvFP)
+        tvFN = findViewById(R.id.tvFN)
+        tvTN = findViewById(R.id.tvTN)
+        tvPrecision = findViewById(R.id.tvPrecision)
+        tvRecall = findViewById(R.id.tvRecall)
+        tvF1 = findViewById(R.id.tvF1)
+
+        // History log
         tvHistoryLog = findViewById(R.id.tvHistoryLog)
         scrollHistoryLog = findViewById(R.id.scrollHistoryLog)
     }
@@ -205,6 +248,7 @@ class MainActivity : AppCompatActivity() {
             btnStartTraining.setIconResource(android.R.drawable.ic_media_play)
             cardTrainingStatus.visibility = View.GONE
             layoutInferenceResult.visibility = View.GONE
+            cardConfusionMatrix.visibility = View.GONE
             Toast.makeText(this, "Storage reset", Toast.LENGTH_SHORT).show()
         }
 
@@ -213,6 +257,23 @@ class MainActivity : AppCompatActivity() {
         btnExportCheckpoint.setOnClickListener { viewModel.exportCheckpoint() }
 
         btnTestImage.setOnClickListener { openImagePicker() }
+
+        // V4: Manual Override — Correct the AI
+        btnCorrectLike.setOnClickListener {
+            currentTestImageUri?.let { uri ->
+                viewModel.addHardExample(uri, 1) // Correct to Like
+                layoutManualOverride.visibility = View.GONE
+                Toast.makeText(this, "Corrected to Like — added to Hard Examples", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        btnCorrectNonlike.setOnClickListener {
+            currentTestImageUri?.let { uri ->
+                viewModel.addHardExample(uri, 0) // Correct to Non-like
+                layoutManualOverride.visibility = View.GONE
+                Toast.makeText(this, "Corrected to Non-like — added to Hard Examples", Toast.LENGTH_SHORT).show()
+            }
+        }
 
         sliderMutationRate.addOnChangeListener { _, value, _ ->
             tvMutationRate.text = String.format("%.2f", value)
@@ -227,31 +288,31 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun observeViewModel() {
-        // v2.0: Prominent generation dashboard
         viewModel.generation.observe(this) { gen ->
             tvGenerationBig.text = gen.toString()
         }
 
-        // V3: Stagnant generations counter
         viewModel.stagnantGenerations.observe(this) { stagnant ->
             tvStagnant.text = stagnant.toString()
-            if (stagnant >= 15) {
-                tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.error_red))
-            } else if (stagnant > 5) {
-                tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
-            } else {
-                tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
+            when {
+                stagnant >= 20 -> tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.error_red))
+                stagnant >= 15 -> tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
+                stagnant > 5 -> tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
+                else -> tvStagnant.setTextColor(ContextCompat.getColor(this, R.color.warning_amber))
             }
         }
 
-        // V3: Global Best (all-time highest)
         viewModel.globalBest.observe(this) { best ->
             tvGlobalBest.text = String.format("%.1f%%", best)
         }
 
-        // V3: Active Mutation Rate (including hyper-mutation boosts)
         viewModel.activeMutRate.observe(this) { rate ->
-            tvActiveMutRate.text = String.format("%.2f", rate)
+            tvActiveMutRate.text = String.format("%.3f", rate)
+        }
+
+        // V4: Decaying Mutation Rate
+        viewModel.decayingMutRate.observe(this) { rate ->
+            tvDecayingMutRate.text = String.format("%.3f", rate)
         }
 
         viewModel.bestAccuracy.observe(this) { acc ->
@@ -273,10 +334,19 @@ class MainActivity : AppCompatActivity() {
                     text = String.format("Non-like: %d", info.nonlikeCount)
                     visibility = View.VISIBLE
                 }
+                // V4: Show train/val split
+                if (info.trainSamples.isNotEmpty() || info.valSamples.isNotEmpty()) {
+                    tvTrainValSplit.text = String.format(
+                        "Train: %d | Val: %d (80/20 split)",
+                        info.trainSamples.size, info.valSamples.size
+                    )
+                    tvTrainValSplit.visibility = View.VISIBLE
+                }
             } else {
                 tvDatasetStatus.text = getString(R.string.no_dataset)
                 tvLikesCount.visibility = View.GONE
                 tvNonlikesCount.visibility = View.GONE
+                tvTrainValSplit.visibility = View.GONE
             }
         }
 
@@ -303,37 +373,61 @@ class MainActivity : AppCompatActivity() {
 
         viewModel.fitnessHistory.observe(this) { history -> updateChart(history) }
 
-        // V3: History Log observer
         viewModel.historyLog.observe(this) { logText ->
             tvHistoryLog.text = logText.ifEmpty { getString(R.string.history_log_empty) }
-            // Auto-scroll to bottom
             scrollHistoryLog.post {
                 scrollHistoryLog.fullScroll(ScrollView.FOCUS_DOWN)
             }
         }
 
-        // V3: Hyper-mutation event
         viewModel.hyperMutationEvent.observe(this) { event ->
-            event?.let {
-                Toast.makeText(this, it, Toast.LENGTH_LONG).show()
-            }
+            event?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+        }
+
+        // V4: Jitter event
+        viewModel.jitterEvent.observe(this) { event ->
+            event?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
+        }
+
+        // V4: Auto-recovery status
+        viewModel.recoveryStatus.observe(this) { status ->
+            status?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
 
         viewModel.inferenceResult.observe(this) { result ->
             result?.let {
                 layoutInferenceResult.visibility = View.VISIBLE
-                tvInferenceLabel.text = it.label
 
                 val isLike = it.label == "Like"
                 val color = if (isLike) ContextCompat.getColor(this, R.color.emerald_success)
                             else ContextCompat.getColor(this, R.color.error_red)
 
+                tvInferenceLabel.text = it.label
                 tvInferenceLabel.setTextColor(color)
-                tvInferenceConfidence.text = String.format("%.1f%% confidence", it.confidence)
+
+                // V4: Confidence Meter (progress bar)
+                progressConfidence.progress = it.confidence.toInt()
+                tvInferenceConfidence.text = String.format("%.1f%% sure", it.confidence)
+
+                // V4: Uncertain badge
+                if (it.isUncertain) {
+                    tvUncertainBadge.visibility = View.VISIBLE
+                    tvInferenceLabel.text = String.format("%s (Uncertain)", it.label)
+                } else {
+                    tvUncertainBadge.visibility = View.GONE
+                }
+
+                // V4: Show Manual Override buttons
+                layoutManualOverride.visibility = View.VISIBLE
 
                 val bg = viewInferenceIndicator.background as? GradientDrawable
                 bg?.setColor(color)
             }
+        }
+
+        // V4: Confusion Matrix observer
+        viewModel.confusionMatrix.observe(this) { matrix ->
+            matrix?.let { updateConfusionMatrix(it) }
         }
 
         viewModel.exportStatus.observe(this) { msg ->
@@ -347,6 +441,22 @@ class MainActivity : AppCompatActivity() {
         viewModel.error.observe(this) { err ->
             err?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
+    }
+
+    /**
+     * V4: Update the Confusion Matrix display.
+     */
+    private fun updateConfusionMatrix(matrix: TeacherBot.EvaluationResult) {
+        cardConfusionMatrix.visibility = View.VISIBLE
+
+        tvTP.text = matrix.truePositives.toString()
+        tvFP.text = matrix.falsePositives.toString()
+        tvFN.text = matrix.falseNegatives.toString()
+        tvTN.text = matrix.trueNegatives.toString()
+
+        tvPrecision.text = String.format("P: %.1f%%", matrix.precision * 100)
+        tvRecall.text = String.format("R: %.1f%%", matrix.recall * 100)
+        tvF1.text = String.format("F1: %.1f%%", matrix.f1Score * 100)
     }
 
     private fun updateChart(history: List<Pair<Int, Float>>) {

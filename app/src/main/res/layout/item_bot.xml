@@ -17,7 +17,7 @@
         android:orientation="vertical"
         android:padding="10dp">
 
-        <!-- Row 1: Indicator + Model Name + Accuracy -->
+        <!-- Row 1: Indicator + Model Name + Accuracy + Loss -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -42,6 +42,18 @@
                 android:fontFamily="sans-serif-medium"
                 android:maxLines="1"
                 android:ellipsize="end" />
+
+            <!-- V4: Loss indicator -->
+            <TextView
+                android:id="@+id/tvBotLoss"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="L0.000"
+                android:textColor="@color/error_red"
+                android:textSize="9sp"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginEnd="4dp"
+                android:visibility="gone" />
 
             <TextView
                 android:id="@+id/tvBotAccuracy"

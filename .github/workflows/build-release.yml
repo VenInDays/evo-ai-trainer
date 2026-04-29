@@ -74,19 +74,35 @@ jobs:
           body: |
             ## EvoAI Trainer v${{ steps.version.outputs.version }}
 
-            ### What's New in V3.0.0
-            - **Hard-Core Evolution Loop**: Top 2 survive, 8 are purged, 8 clones repopulate
-            - **Dynamic Lineage**: Children can outperform parents — no model is safe
-            - **Model Identity Naming**: "Model [ID] Gen [Generation]" family tracking
-            - **LEGACY/CLONE Badges**: Gold LEGACY for survivors, GEN[X] CLONE for offspring
-            - **Sparkline Charts**: Tiny fitness trend graphs on each model card
-            - **Gaussian Mutation**: Natural distribution weight perturbation (0.01-0.50 range)
-            - **Hyper-Mutation**: Auto-doubles mutation rate after 15 stagnant generations
-            - **Global Best Dashboard**: All-time highest accuracy ever recorded
-            - **Active Mutation Rate**: Shows current rate including auto-boosts
-            - **Top-2 Persistence**: Best 2 models saved every generation (crash-proof)
-            - **Test Lab**: Gallery photo prediction with confidence display
-            - **Export Champion .model / Export State .ckpt**: Full file export
+            ### What's New in V4.0.0 — Commercial Grade & Stability
+
+            **Structural AI Brain Upgrade:**
+            - **MLP with ReLU**: Upgraded to Multi-Layer Perceptron with Leaky ReLU hidden layers + Sigmoid output
+            - **He Initialization**: Proper weight initialization for faster convergence
+            - **Feature Normalization**: Pixels 0-255 → 0.0-1.0 for stable sigmoid inputs
+            - **Cross-Validation**: 80% Training / 20% Validation split — fitness scored on validation set to prevent overfitting
+
+            **Advanced Training & Mutation:**
+            - **Decaying Mutation Rate**: Auto-decreases as accuracy >90% for fine-tuning
+            - **Anti-Stagnation (Jittering)**: 20 stagnant gens → Neural Jitter (tiny noise to ALL weights)
+            - **Hyper-Mutation**: 15 stagnant gens → 2x mutation rate for 1 round
+            - **Lower-Loss Tiebreaker**: Same accuracy → model with lower BCE loss wins
+
+            **Commercial Model Storage:**
+            - **Internal Storage**: Models saved to `context.filesDir` instead of SharedPreferences
+            - **Auto-Recovery**: Loads `latest_checkpoint.ckpt` on startup
+            - **Export Champion .model**: JSON format compatible with Web/other apps
+
+            **UI/UX Commercial Lab:**
+            - **Confidence Meter**: Progress bar showing "Like - 98.2% Sure" or "UNCERTAIN" if <50%
+            - **Confusion Matrix**: TP/FP/FN/TN table with Precision/Recall/F1
+            - **Manual Override**: "Correct the AI" button adds hard examples for next training
+            - **Decay Rate Dashboard**: Shows current decaying mutation rate
+
+            **Technical:**
+            - **Memory Management**: Explicit nulling of discarded models + System.gc()
+            - **Thread Safety**: synchronized blocks for model replication
+            - **BCE Loss**: Binary Cross-Entropy loss tracking per model
 
             ### Installation
             1. Download the APK below
@@ -101,6 +117,6 @@ jobs:
 
       - name: Verify Release
         run: |
-          echo "✅ Release v${{ steps.version.outputs.version }} created successfully!"
+          echo "Release v${{ steps.version.outputs.version }} created successfully!"
           echo "APK: EvoAI-Trainer-v${{ steps.version.outputs.version }}.apk"
           ls -la EvoAI-Trainer-v${{ steps.version.outputs.version }}.apk

@@ -130,7 +130,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- V3 Stats Cards Row: Global Best + Active Mut Rate -->
+            <!-- V4 Stats Cards Row: Global Best + Active Mut Rate + Decay Rate -->
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
@@ -167,7 +167,7 @@
                             android:layout_height="wrap_content"
                             android:text="0.0%"
                             android:textColor="@color/white_pure"
-                            android:textSize="22sp"
+                            android:textSize="20sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -203,11 +203,12 @@
                             android:layout_height="wrap_content"
                             android:text="0.05"
                             android:textColor="@color/white_pure"
-                            android:textSize="22sp"
+                            android:textSize="20sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
 
+                <!-- V4: Decaying Mutation Rate card -->
                 <com.google.android.material.card.MaterialCardView
                     style="@style/DashboardCard"
                     android:layout_width="0dp"
@@ -225,7 +226,7 @@
                         <TextView
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="@string/fitness_label"
+                            android:text="@string/decay_rate_label"
                             android:textColor="@color/white_pure"
                             android:textSize="9sp"
                             android:fontFamily="sans-serif-medium"
@@ -233,12 +234,12 @@
                             android:textAllCaps="true" />
 
                         <TextView
-                            android:id="@+id/tvFitness"
+                            android:id="@+id/tvDecayingMutRate"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:text="0.0"
+                            android:text="0.05"
                             android:textColor="@color/white_pure"
-                            android:textSize="22sp"
+                            android:textSize="20sp"
                             android:fontFamily="sans-serif-bold" />
                     </LinearLayout>
                 </com.google.android.material.card.MaterialCardView>
@@ -297,6 +298,16 @@
                                 android:textSize="12sp"
                                 android:visibility="gone" />
                         </LinearLayout>
+
+                        <!-- V4: Train/Val split info -->
+                        <TextView
+                            android:id="@+id/tvTrainValSplit"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/slate_blue_training"
+                            android:textSize="11sp"
+                            android:visibility="gone"
+                            android:layout_marginTop="2dp" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -575,7 +586,7 @@
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 
-            <!-- V3 Test Lab Section -->
+            <!-- ===== V4 TEST LAB SECTION ===== -->
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
@@ -585,12 +596,13 @@
                 android:fontFamily="sans-serif-medium"
                 android:layout_marginBottom="10dp" />
 
+            <!-- Test Lab Card -->
             <com.google.android.material.card.MaterialCardView
                 android:id="@+id/cardInference"
                 style="@style/CardViewStyle"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="14dp"
+                android:layout_marginBottom="10dp"
                 app:cardBackgroundColor="@color/white_pure">
 
                 <LinearLayout
@@ -609,6 +621,7 @@
                         app:icon="@android:drawable/ic_menu_gallery"
                         app:iconGravity="textStart" />
 
+                    <!-- V4: Inference Result with Confidence Meter -->
                     <LinearLayout
                         android:id="@+id/layoutInferenceResult"
                         android:layout_width="match_parent"
@@ -633,14 +646,272 @@
                             android:fontFamily="sans-serif-bold"
                             android:textColor="@color/gray_800" />
 
+                        <!-- V4: Confidence Meter (ProgressBar) -->
+                        <LinearLayout
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="8dp"
+                            android:gravity="center_vertical">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="@string/confidence_label"
+                                android:textSize="11sp"
+                                android:textColor="@color/gray_500"
+                                android:layout_marginEnd="6dp" />
+
+                            <ProgressBar
+                                android:id="@+id/progressConfidence"
+                                style="?android:attr/progressBarStyleHorizontal"
+                                android:layout_width="0dp"
+                                android:layout_height="8dp"
+                                android:layout_weight="1"
+                                android:max="100"
+                                android:progress="0"
+                                android:progressDrawable="@drawable/progress_confidence" />
+
+                            <TextView
+                                android:id="@+id/tvInferenceConfidence"
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:textSize="13sp"
+                                android:fontFamily="sans-serif-medium"
+                                android:textColor="@color/gray_600"
+                                android:layout_marginStart="6dp" />
+                        </LinearLayout>
+
+                        <!-- V4: Uncertain indicator -->
                         <TextView
-                            android:id="@+id/tvInferenceConfidence"
+                            android:id="@+id/tvUncertainBadge"
                             android:layout_width="wrap_content"
                             android:layout_height="wrap_content"
-                            android:textSize="14sp"
-                            android:fontFamily="sans-serif-medium"
-                            android:textColor="@color/gray_600"
-                            android:layout_marginTop="4dp" />
+                            android:text="@string/uncertain_label"
+                            android:textSize="11sp"
+                            android:fontFamily="sans-serif-bold"
+                            android:textColor="@color/warning_amber"
+                            android:background="@drawable/badge_reset"
+                            android:paddingStart="8dp"
+                            android:paddingEnd="8dp"
+                            android:paddingTop="2dp"
+                            android:paddingBottom="2dp"
+                            android:visibility="gone"
+                            android:layout_marginTop="6dp" />
+
+                        <!-- V4: Manual Override - Correct the AI -->
+                        <LinearLayout
+                            android:id="@+id/layoutManualOverride"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="horizontal"
+                            android:layout_marginTop="10dp"
+                            android:visibility="gone">
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnCorrectLike"
+                                style="@style/ControlButton.Success"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:layout_marginEnd="4dp"
+                                android:text="@string/correct_like"
+                                android:textSize="11sp" />
+
+                            <com.google.android.material.button.MaterialButton
+                                android:id="@+id/btnCorrectNonlike"
+                                style="@style/ControlButton.Danger"
+                                android:layout_width="0dp"
+                                android:layout_height="40dp"
+                                android:layout_weight="1"
+                                android:layout_marginStart="4dp"
+                                android:text="@string/correct_nonlike"
+                                android:textSize="11sp" />
+                        </LinearLayout>
+                    </LinearLayout>
+                </LinearLayout>
+            </com.google.android.material.card.MaterialCardView>
+
+            <!-- V4: Confusion Matrix Card -->
+            <com.google.android.material.card.MaterialCardView
+                android:id="@+id/cardConfusionMatrix"
+                style="@style/CardViewStyle"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginBottom="10dp"
+                android:visibility="gone"
+                app:cardBackgroundColor="@color/white_pure">
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:orientation="vertical"
+                    android:padding="14dp">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:text="@string/confusion_matrix_title"
+                        android:textColor="@color/gray_700"
+                        android:textSize="13sp"
+                        android:fontFamily="sans-serif-medium"
+                        android:layout_marginBottom="8dp" />
+
+                    <!-- 2x2 Grid: TP | FP / FN | TN -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal">
+
+                        <!-- Column 1: Predicted Like -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Pred: Like"
+                                android:textSize="9sp"
+                                android:textColor="@color/gray_500"
+                                android:layout_marginBottom="4dp" />
+
+                            <TextView
+                                android:id="@+id/tvTP"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textSize="14sp"
+                                android:fontFamily="sans-serif-bold"
+                                android:textColor="@color/emerald_success"
+                                android:background="@color/gray_50"
+                                android:gravity="center"
+                                android:padding="6dp"
+                                android:layout_marginBottom="2dp" />
+
+                            <TextView
+                                android:id="@+id/tvFN"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textSize="14sp"
+                                android:fontFamily="sans-serif-bold"
+                                android:textColor="@color/error_red"
+                                android:background="@color/gray_50"
+                                android:gravity="center"
+                                android:padding="6dp" />
+                        </LinearLayout>
+
+                        <!-- Column 2: Predicted Non-like -->
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:layout_marginStart="4dp">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="Pred: Non-like"
+                                android:textSize="9sp"
+                                android:textColor="@color/gray_500"
+                                android:layout_marginBottom="4dp" />
+
+                            <TextView
+                                android:id="@+id/tvFP"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textSize="14sp"
+                                android:fontFamily="sans-serif-bold"
+                                android:textColor="@color/warning_amber"
+                                android:background="@color/gray_50"
+                                android:gravity="center"
+                                android:padding="6dp"
+                                android:layout_marginBottom="2dp" />
+
+                            <TextView
+                                android:id="@+id/tvTN"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="0"
+                                android:textSize="14sp"
+                                android:fontFamily="sans-serif-bold"
+                                android:textColor="@color/emerald_success"
+                                android:background="@color/gray_50"
+                                android:gravity="center"
+                                android:padding="6dp" />
+                        </LinearLayout>
+                    </LinearLayout>
+
+                    <!-- Row labels -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="4dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Actual: Like"
+                            android:textSize="9sp"
+                            android:textColor="@color/gray_500"
+                            android:gravity="center" />
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Actual: Non-like"
+                            android:textSize="9sp"
+                            android:textColor="@color/gray_500"
+                            android:gravity="center"
+                            android:layout_marginStart="4dp" />
+                    </LinearLayout>
+
+                    <!-- V4: Precision / Recall / F1 -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:layout_marginTop="8dp">
+
+                        <TextView
+                            android:id="@+id/tvPrecision"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="P: 0%"
+                            android:textSize="10sp"
+                            android:textColor="@color/slate_blue_training"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tvRecall"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="R: 0%"
+                            android:textSize="10sp"
+                            android:textColor="@color/slate_blue_training"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <TextView
+                            android:id="@+id/tvF1"
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="F1: 0%"
+                            android:textSize="10sp"
+                            android:textColor="@color/slate_blue_training"
+                            android:fontFamily="sans-serif-medium" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>

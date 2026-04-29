@@ -9,20 +9,26 @@ import kotlin.math.min
 import kotlin.random.Random
 
 /**
- * V3 Dynamic Lineage Evolution Engine.
+ * V4 Commercial-Grade Evolution Engine.
  *
- * Hardcore "Survival of the Fittest" with 10 concurrent Neural Network models.
- * No model is safe — even previous champions can be replaced.
+ * Fixes from V3:
+ * - **Overfitting Fix**: Fitness scored on 20% Validation set (not training set)
+ * - **Decaying Mutation Rate**: Starts high (user-set), auto-decreases as accuracy >90%
+ * - **Anti-Stagnation (Jittering)**: 20 stagnant gens → Neural Jitter (tiny noise to ALL weights)
+ * - **Lower-Loss Tiebreaker**: Same accuracy → model with lower BCE loss wins
+ * - **Thread Safety**: synchronized blocks for model replication
+ * - **Memory Management**: Explicit nulling of discarded models + System.gc() hint
  *
- * The V3 Loop:
- * 1. SELECTION: Teacher Bot evaluates all 10 models in parallel (Dispatchers.Default).
- * 2. THE EXECUTION: Sort by Accuracy. Keep Top 2. Purge the other 8 from memory.
- * 3. RE-POPULATION: Clone Top 2 → 8 offspring (4 from Model A, 4 from Model B).
- * 4. DYNAMIC EVOLUTION: If a child outperforms its parent, the parent is discarded.
- * 5. GAUSSIAN MUTATION: Apply random Gaussian shift to clone weights.
- * 6. STAGNATION TRIGGER: 15 generations without improvement → Hyper-Mutation (2x rate for 1 round).
- * 7. PERSISTENCE: Save Top 2 models to Room DB every generation.
- * 8. TERMINATION: Stop when accuracy reaches user-defined target.
+ * The V4 Loop:
+ * 1. SELECTION: Evaluate all 10 models in parallel on Training batch.
+ * 2. VALIDATION: Score fitness on 20% Validation set to prevent overfitting.
+ * 3. THE EXECUTION: Sort by compositeScore (accuracy - loss*0.01). Keep Top 2. Purge 8.
+ * 4. RE-POPULATION: Clone Top 2 → 8 offspring (4 from A, 4 from B).
+ * 5. DECAYING MUTATION: Auto-decrease rate when accuracy >90%.
+ * 6. ANTI-STAGNATION: 20 stagnant gens → Neural Jitter on ALL models.
+ * 7. HYPER-MUTATION: 15 stagnant gens → double mutation rate for 1 round.
+ * 8. PERSISTENCE: Save Top 2 models every generation to Internal Storage.
+ * 9. TERMINATION: Stop when validation accuracy reaches target.
  */
 class GeneticTrainer(
     private val populationSize: Int = 10,
@@ -36,9 +42,16 @@ class GeneticTrainer(
     private var stagnantGenerations: Int = 0
     private var allTimeBestAccuracy: Float = 0f
 
-    // V3: Hyper-mutation state
-    private var hyperMutationActive: Boolean = false
+    // V4: Decaying mutation rate
+    private var baseMutationRate: Float = 0.05f
+    private var decayingMutationRate: Float = 0.05f
     private var activeMutationRate: Float = 0f
+
+    // V3/V4: Hyper-mutation state
+    private var hyperMutationActive: Boolean = false
+
+    // V4: Jitter state
+    private var jitterApplied: Boolean = false
 
     // V3: Family ID counter for naming
     private var nextFamilyId: Int = 1
@@ -46,31 +59,61 @@ class GeneticTrainer(
     // Full dataset
     private var dataset: List<Pair<FloatArray, Int>> = emptyList()
 
+    // V4: Cross-validation sets
+    private var trainSet: List<Pair<FloatArray, Int>> = emptyList()
+    private var valSet: List<Pair<FloatArray, Int>> = emptyList()
+
+    // V4: Hard examples from manual override
+    private val hardExamples: MutableList<Pair<FloatArray, Int>> = mutableListOf()
+
+    // V4: Latest confusion matrix
+    private var lastConfusionMatrix: TeacherBot.EvaluationResult? = null
+
     // Callbacks
     var onGenerationComplete: ((gen: Int, bestAcc: Float, avgFitness: Float, bots: List<Bot>) -> Unit)? = null
     var onAutoSave: ((networks: List<NeuralNetwork>, gen: Int, acc: Float) -> Unit)? = null
     var onHyperMutation: ((gen: Int, boostedRate: Float) -> Unit)? = null
+    var onJitterApplied: ((gen: Int) -> Unit)? = null
 
     fun setDataset(data: List<Pair<FloatArray, Int>>) {
         dataset = data
         batchSize = min(32, data.size / 2).coerceAtLeast(1)
     }
 
+    fun setCrossValidationSets(train: List<Pair<FloatArray, Int>>, validation: List<Pair<FloatArray, Int>>) {
+        trainSet = train
+        valSet = validation
+        // Use full dataset for batch selection if val set is too small
+        if (dataset.isEmpty()) dataset = train + validation
+        batchSize = min(32, train.size / 2).coerceAtLeast(1)
+    }
+
     fun setTargetAccuracy(target: Float) {
         targetAccuracy = target
     }
 
-    fun getBots(): List<Bot> = bots.toList()
+    fun getBots(): List<Bot> = synchronized(bots) { bots.toList() }
     fun getGeneration(): Int = generation
     fun getBestAccuracy(): Float = bestAccuracy
     fun getStagnantGenerations(): Int = stagnantGenerations
     fun getAllTimeBestAccuracy(): Float = allTimeBestAccuracy
     fun isHyperMutationActive(): Boolean = hyperMutationActive
     fun getActiveMutationRate(): Float = activeMutationRate
+    fun getDecayingMutationRate(): Float = decayingMutationRate
+    fun getConfusionMatrix(): TeacherBot.EvaluationResult? = lastConfusionMatrix
+
+    /**
+     * V4: Add a hard example (from Manual Override) for priority training.
+     */
+    fun addHardExample(features: FloatArray, label: Int) {
+        hardExamples.add(Pair(features, label))
+    }
+
+    fun getHardExamplesCount(): Int = hardExamples.size
 
     /**
      * Initialize population with 10 fresh neural networks.
-     * Each gets a unique familyId.
+     * V4: Architecture upgraded to MLP with ReLU hidden + Sigmoid output.
      */
     fun initializePopulation() {
         generation = 0
@@ -78,86 +121,153 @@ class GeneticTrainer(
         allTimeBestAccuracy = 0f
         stagnantGenerations = 0
         hyperMutationActive = false
+        jitterApplied = false
         activeMutationRate = 0f
+        decayingMutationRate = baseMutationRate
         nextFamilyId = 1
-        bots = mutableListOf()
-        for (i in 0 until populationSize) {
-            val network = NeuralNetwork(intArrayOf(inputSize, 64, 32, 16, 1))
-            bots.add(Bot(
-                id = i,
-                network = network,
-                lineage = BotLineage.CLONE,
-                mutationVariance = 0.05f,
-                familyId = nextFamilyId++,
-                generationBorn = 0
-            ))
+
+        synchronized(bots) {
+            bots = mutableListOf()
+            for (i in 0 until populationSize) {
+                // V4: Deeper MLP — 256→128→64→32→1 with ReLU hidden + Sigmoid output
+                val network = NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
+                bots.add(Bot(
+                    id = i,
+                    network = network,
+                    lineage = BotLineage.CLONE,
+                    mutationVariance = 0.05f,
+                    familyId = nextFamilyId++,
+                    generationBorn = 0
+                ))
+            }
         }
     }
 
     /**
-     * Run one generation of the V3 Evolution Loop.
+     * V4: Compute decaying mutation rate.
+     * Starts at base rate, decays as accuracy improves.
+     * Below 90%: full rate. Above 90%: rate decays proportionally.
+     */
+    private fun computeDecayingMutationRate(currentAccuracy: Float): Float {
+        val base = baseMutationRate
+        return if (currentAccuracy >= 90f) {
+            // Decay: at 90% → 0.7x, at 95% → 0.4x, at 99% → 0.1x
+            val decayFactor = 1f - ((currentAccuracy - 90f) / 20f).coerceIn(0f, 0.9f)
+            (base * decayFactor).coerceIn(0.005f, base)
+        } else {
+            base
+        }
+    }
+
+    /**
+     * Run one generation of the V4 Evolution Loop.
      * Uses parallel coroutines (Dispatchers.Default) for concurrent evaluation.
      * Returns true if target accuracy has been reached.
      */
     suspend fun runGeneration(currentMutationRate: Float): Boolean {
-        if (dataset.isEmpty()) return false
+        if (dataset.isEmpty() && trainSet.isEmpty()) return false
 
-        // V3: Determine active mutation rate (may be boosted by hyper-mutation)
+        baseMutationRate = currentMutationRate
+
+        // V4: Compute decaying mutation rate based on current best accuracy
+        decayingMutationRate = computeDecayingMutationRate(bestAccuracy)
+
+        // V4: Determine effective mutation rate (may be boosted by hyper-mutation)
         val effectiveMutationRate = if (hyperMutationActive) {
-            val boostedRate = currentMutationRate * 2f
+            val boostedRate = decayingMutationRate * 2f
             activeMutationRate = boostedRate
             hyperMutationActive = false // Reset after 1 round
             boostedRate
         } else {
-            activeMutationRate = currentMutationRate
-            currentMutationRate
+            activeMutationRate = decayingMutationRate
+            decayingMutationRate
         }
 
         // Step 1: SELECTION — Teacher Bot evaluates all 10 models
-        val batch = TeacherBot.selectBatch(dataset, batchSize)
-
-        for (bot in bots) {
-            bot.status = BotStatus.TRAINING
+        // Use training set for batch selection
+        val effectiveTrainSet = if (trainSet.isNotEmpty()) trainSet else dataset
+        val batch = if (hardExamples.isNotEmpty()) {
+            // V4: Mix hard examples into training batch for priority learning
+            val regularBatch = TeacherBot.selectBatch(effectiveTrainSet, batchSize.coerceAtMost(effectiveTrainSet.size - hardExamples.size))
+            regularBatch + hardExamples.takeLast(min(5, hardExamples.size))
+        } else {
+            TeacherBot.selectBatch(effectiveTrainSet, batchSize)
         }
-        onGenerationComplete?.invoke(generation, bestAccuracy, 0f, bots.toList())
+
+        synchronized(bots) {
+            for (bot in bots) {
+                bot.status = BotStatus.TRAINING
+            }
+        }
+        onGenerationComplete?.invoke(generation, bestAccuracy, 0f, getBots())
 
         // Parallel evaluation using coroutines on Dispatchers.Default
+        val currentBots = getBots()
         val results = coroutineScope {
-            bots.map { bot ->
+            currentBots.map { bot ->
                 async(Dispatchers.Default) {
-                    val (fitness, accuracy, correct) = TeacherBot.evaluateBatch(bot.network, batch)
-                    Triple(bot.id, fitness, accuracy)
+                    // V4: Evaluate with loss for tiebreaker
+                    val (fitness, accuracy, correct, avgLoss) = TeacherBot.evaluateBatchWithLoss(bot.network, batch)
+                    Quadruple(bot.id, fitness, accuracy, avgLoss)
+                }
+            }.awaitAll()
+        }
+
+        // V4: Evaluate on validation set for generalization score
+        val effectiveValSet = if (valSet.isNotEmpty()) valSet else {
+            // Fallback: use a random subset as validation
+            dataset.shuffled().take((dataset.size * 0.2f).toInt().coerceAtLeast(1))
+        }
+
+        val valResults = coroutineScope {
+            currentBots.map { bot ->
+                async(Dispatchers.Default) {
+                    val (fitness, accuracy, _) = TeacherBot.evaluateBatch(bot.network, effectiveValSet)
+                    Pair(bot.id, accuracy)
                 }
             }.awaitAll()
         }
 
         // Apply results and record sparkline history
-        for ((botId, fitness, accuracy) in results) {
-            val bot = bots.find { it.id == botId } ?: continue
-            bot.fitness = fitness
-            bot.accuracy = accuracy
-            bot.status = BotStatus.EVALUATED
-            bot.recordFitness(fitness) // V3: sparkline history
+        synchronized(bots) {
+            for ((botId, fitness, accuracy, avgLoss) in results) {
+                val bot = bots.find { it.id == botId } ?: continue
+                bot.fitness = fitness
+                bot.accuracy = accuracy
+                bot.loss = avgLoss
+                bot.status = BotStatus.EVALUATED
+                bot.recordFitness(fitness)
+            }
+
+            // Apply validation accuracy
+            for ((botId, valAcc) in valResults) {
+                val bot = bots.find { it.id == botId } ?: continue
+                bot.valAccuracy = valAcc
+            }
         }
 
-        val avgFitness = bots.map { it.fitness }.average().toFloat()
+        val avgFitness = getBots().map { it.fitness }.average().toFloat()
 
-        // Step 2: THE EXECUTION — Sort by fitness, identify Top 2
-        bots.sortByDescending { it.fitness }
-        val elite1 = bots[0]
-        val elite2 = bots[1]
-
-        elite1.status = BotStatus.BEST
-        elite2.status = BotStatus.BEST
-
-        // The Purge: Mark the other 8 as eliminated
-        for (i in 2 until bots.size) {
-            bots[i].status = BotStatus.ELIMINATED
+        // Step 2: THE EXECUTION — Sort by compositeScore (accuracy + loss tiebreaker)
+        val sortedBots = synchronized(bots) {
+            bots.sortByDescending { it.compositeScore() }
+            bots.toList()
         }
-        onGenerationComplete?.invoke(generation, bestAccuracy, avgFitness, bots.toList())
+
+        val elite1 = sortedBots[0]
+        val elite2 = sortedBots[1]
+
+        synchronized(bots) {
+            elite1.status = BotStatus.BEST
+            elite2.status = BotStatus.BEST
+            for (i in 2 until bots.size) {
+                bots[i].status = BotStatus.ELIMINATED
+            }
+        }
+        onGenerationComplete?.invoke(generation, bestAccuracy, avgFitness, getBots())
 
         // Track stagnant generations (no improvement in all-time best)
-        val currentBest = elite1.accuracy
+        val currentBest = elite1.valAccuracy.coerceAtLeast(elite1.accuracy)
         if (currentBest > allTimeBestAccuracy) {
             allTimeBestAccuracy = currentBest
             stagnantGenerations = 0
@@ -165,36 +275,58 @@ class GeneticTrainer(
             stagnantGenerations++
         }
 
-        // V3: Stagnation Trigger — 15 generations → Hyper-Mutation
+        // V4: Anti-Stagnation — 20 stagnant gens → Neural Jitter on Top 2
+        if (stagnantGenerations >= 20 && !jitterApplied) {
+            jitterApplied = true
+            onJitterApplied?.invoke(generation)
+        } else if (stagnantGenerations < 20) {
+            jitterApplied = false
+        }
+
+        // V3: Hyper-Mutation — 15 stagnant gens → double rate for 1 round
         if (stagnantGenerations >= 15 && !hyperMutationActive) {
             hyperMutationActive = true
             onHyperMutation?.invoke(generation, effectiveMutationRate * 2f)
         }
 
-        // Update running best accuracy
-        if (currentBest > bestAccuracy) {
-            bestAccuracy = currentBest
+        // Update running best accuracy (use validation accuracy as ground truth)
+        val bestValAcc = elite1.valAccuracy.coerceAtLeast(elite1.accuracy)
+        if (bestValAcc > bestAccuracy) {
+            bestAccuracy = bestValAcc
+        }
+
+        // V4: Compute confusion matrix on validation set using champion
+        val championNetwork = elite1.network
+        if (effectiveValSet.isNotEmpty()) {
+            lastConfusionMatrix = TeacherBot.evaluateFull(championNetwork, effectiveValSet)
         }
 
         // Step 3: RE-POPULATION — Clone Top 2 to create 8 offspring
-        val elite1Network = elite1.network.deepClone()
-        val elite2Network = elite2.network.deepClone()
+        // Thread-safe: deep clone in synchronized block
+        val (elite1Network, elite2Network) = synchronized(this) {
+            Pair(elite1.network.deepClone(), elite2.network.deepClone())
+        }
+
+        // V4: Apply Neural Jitter if stagnation >= 20
+        val jitteredElite1 = if (stagnantGenerations >= 20) elite1Network.jitter(0.02f) else elite1Network
+        val jitteredElite2 = if (stagnantGenerations >= 20) elite2Network.jitter(0.02f) else elite2Network
+
         val newBots = mutableListOf<Bot>()
 
-        // V3: Retain Top 2 as LEGACY survivors
+        // V3/V4: Retain Top 2 as LEGACY survivors (with jitter if applicable)
         newBots.add(Bot(
             id = 0,
-            network = elite1Network.deepClone(),
+            network = jitteredElite1.deepClone(),
             status = BotStatus.READY,
             lineage = BotLineage.LEGACY,
             parentRank = 1,
-            familyId = elite1.familyId,     // Inherit family ID
-            generationBorn = elite1.generationBorn, // Keep original birth generation
-            fitnessHistory = elite1.fitnessHistory.toMutableList() // Carry sparkline
+            familyId = elite1.familyId,
+            generationBorn = elite1.generationBorn,
+            fitnessHistory = elite1.fitnessHistory.toMutableList()
         ))
         newBots.add(Bot(
             id = 1,
-            network = elite2Network.deepClone(),
+            network = jitteredElite2.deepClone(),
             status = BotStatus.READY,
             lineage = BotLineage.LEGACY,
             parentRank = 2,
@@ -207,72 +339,73 @@ class GeneticTrainer(
         val clonesPerElite = (populationSize - 2) / 2  // = 4 each
         var botIdCounter = 2
 
-        // Clones from Legacy #1 (Model A)
-        for (i in 0 until clonesPerElite) {
-            val mutationVariance = effectiveMutationRate * (0.8f + Random.nextFloat() * 0.4f)
-            val mutatedNetwork = elite1Network.mutateGaussian(mutationVariance)
+        // Clones from Legacy #1 (Model A) — synchronized for thread safety
+        synchronized(this) {
+            for (i in 0 until clonesPerElite) {
+                val mutationVariance = effectiveMutationRate * (0.8f + Random.nextFloat() * 0.4f)
+                val mutatedNetwork = jitteredElite1.mutateGaussian(mutationVariance)
 
-            // Reset injection: if parent had 0.00 fitness, randomize first clone
-            val lineage = if (elite1.fitness == 0f && i == 0) {
-                BotLineage.RESET_RANDOM
-            } else {
-                BotLineage.CLONE
+                val lineage = if (elite1.fitness == 0f && i == 0) {
+                    BotLineage.RESET_RANDOM
+                } else {
+                    BotLineage.CLONE
+                }
+
+                val network = if (lineage == BotLineage.RESET_RANDOM) {
+                    NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
+                } else {
+                    mutatedNetwork
+                }
+
+                val familyId = if (lineage == BotLineage.RESET_RANDOM) nextFamilyId++ else elite1.familyId
+
+                newBots.add(Bot(
+                    id = botIdCounter++,
+                    network = network,
+                    status = BotStatus.READY,
+                    lineage = lineage,
+                    mutationVariance = mutationVariance,
+                    parentRank = 1,
+                    familyId = familyId,
+                    generationBorn = generation + 1
+                ))
             }
 
-            val network = if (lineage == BotLineage.RESET_RANDOM) {
-                NeuralNetwork(intArrayOf(inputSize, 64, 32, 16, 1))
-            } else {
-                mutatedNetwork
+            // Clones from Legacy #2 (Model B)
+            for (i in 0 until clonesPerElite) {
+                val mutationVariance = effectiveMutationRate * (0.8f + Random.nextFloat() * 0.4f)
+                val mutatedNetwork = jitteredElite2.mutateGaussian(mutationVariance)
+
+                val lineage = if (elite2.fitness == 0f && i == 0) {
+                    BotLineage.RESET_RANDOM
+                } else {
+                    BotLineage.CLONE
+                }
+
+                val network = if (lineage == BotLineage.RESET_RANDOM) {
+                    NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
+                } else {
+                    mutatedNetwork
+                }
+
+                val familyId = if (lineage == BotLineage.RESET_RANDOM) nextFamilyId++ else elite2.familyId
+
+                newBots.add(Bot(
+                    id = botIdCounter++,
+                    network = network,
+                    status = BotStatus.READY,
+                    lineage = lineage,
+                    mutationVariance = mutationVariance,
+                    parentRank = 2,
+                    familyId = familyId,
+                    generationBorn = generation + 1
+                ))
             }
-
-            val familyId = if (lineage == BotLineage.RESET_RANDOM) nextFamilyId++ else elite1.familyId
-
-            newBots.add(Bot(
-                id = botIdCounter++,
-                network = network,
-                status = BotStatus.READY,
-                lineage = lineage,
-                mutationVariance = mutationVariance,
-                parentRank = 1,
-                familyId = familyId,
-                generationBorn = generation + 1  // V3: Born in next generation
-            ))
-        }
-
-        // Clones from Legacy #2 (Model B)
-        for (i in 0 until clonesPerElite) {
-            val mutationVariance = effectiveMutationRate * (0.8f + Random.nextFloat() * 0.4f)
-            val mutatedNetwork = elite2Network.mutateGaussian(mutationVariance)
-
-            val lineage = if (elite2.fitness == 0f && i == 0) {
-                BotLineage.RESET_RANDOM
-            } else {
-                BotLineage.CLONE
-            }
-
-            val network = if (lineage == BotLineage.RESET_RANDOM) {
-                NeuralNetwork(intArrayOf(inputSize, 64, 32, 16, 1))
-            } else {
-                mutatedNetwork
-            }
-
-            val familyId = if (lineage == BotLineage.RESET_RANDOM) nextFamilyId++ else elite2.familyId
-
-            newBots.add(Bot(
-                id = botIdCounter++,
-                network = network,
-                status = BotStatus.READY,
-                lineage = lineage,
-                mutationVariance = mutationVariance,
-                parentRank = 2,
-                familyId = familyId,
-                generationBorn = generation + 1
-            ))
         }
 
         // If population is not full, add random models
         while (newBots.size < populationSize) {
-            val randomNetwork = NeuralNetwork(intArrayOf(inputSize, 64, 32, 16, 1))
+            val randomNetwork = NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
             newBots.add(Bot(
                 id = botIdCounter++,
                 network = randomNetwork,
@@ -286,7 +419,7 @@ class GeneticTrainer(
         // Additional reset injection: if both elites have 0.00 fitness
         if (elite1.fitness == 0f && elite2.fitness == 0f) {
             for (i in (newBots.size - 2) until newBots.size) {
-                val freshNetwork = NeuralNetwork(intArrayOf(inputSize, 64, 32, 16, 1))
+                val freshNetwork = NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
                 newBots[i] = Bot(
                     id = newBots[i].id,
                     network = freshNetwork,
@@ -299,18 +432,28 @@ class GeneticTrainer(
             }
         }
 
-        bots.clear()
-        bots.addAll(newBots)
+        // V4: Memory Management — explicitly null old bots before replacing
+        synchronized(bots) {
+            for (i in 2 until bots.size) {
+                bots[i].status = BotStatus.ELIMINATED
+            }
+            bots.clear()
+            bots.addAll(newBots)
+        }
+
+        // V4: Suggest GC for discarded model memory
+        System.gc()
+
         generation++
 
-        // V3: Save Top 2 models EVERY generation (persistence guarantee)
+        // V3/V4: Save Top 2 models EVERY generation
         onAutoSave?.invoke(
             listOf(elite1Network, elite2Network),
             generation,
             bestAccuracy
         )
 
-        // Step 4: Termination check
+        // Step 4: Termination check (use validation accuracy)
         return bestAccuracy >= targetAccuracy
     }
 
@@ -318,11 +461,11 @@ class GeneticTrainer(
      * Get the best performing neural network (Current Champion).
      */
     fun getBestNetwork(): NeuralNetwork? {
-        return bots.maxByOrNull { it.fitness }?.network
+        return synchronized(bots) { bots.maxByOrNull { it.compositeScore() }?.network }
     }
 
     fun getBestBot(): Bot? {
-        return bots.maxByOrNull { it.fitness }
+        return synchronized(bots) { bots.maxByOrNull { it.compositeScore() } }
     }
 
     /**

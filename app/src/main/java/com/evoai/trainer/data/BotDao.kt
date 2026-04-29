@@ -43,4 +43,14 @@ interface BotDao {
 
     @Query("DELETE FROM best_model_checkpoints")
     suspend fun deleteAllCheckpoints()
+
+    // V4: Hard examples operations
+    @Insert(onConflict = OnConflictStrategy.REPLACE)
+    suspend fun insertHardExample(example: HardExampleEntity)
+
+    @Query("SELECT * FROM hard_examples ORDER BY addedAt DESC")
+    suspend fun getHardExamples(): List<HardExampleEntity>
+
+    @Query("DELETE FROM hard_examples")
+    suspend fun deleteAllHardExamples()
 }

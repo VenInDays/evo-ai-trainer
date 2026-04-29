@@ -38,24 +38,34 @@ jobs:
             -storepass evoai2024 \
             -keypass evoai2024 \
             -dname "CN=EvoAI, OU=Dev, O=EvoAI Trainer, L=Singapore, ST=Singapore, C=SG"
-        shell: bash
+          echo "Keystore generated at $(pwd)/app/keystore/release.keystore"
+          ls -la app/keystore/release.keystore
 
-      - name: Create local.properties
+      - name: Create local.properties with signing config
         run: |
-          echo "KEYSTORE_PATH=app/keystore/release.keystore" >> local.properties
-          echo "KEYSTORE_PASSWORD=evoai2024" >> local.properties
-          echo "KEY_ALIAS=evoai" >> local.properties
-          echo "KEY_PASSWORD=evoai2024" >> local.properties
+          cat > local.properties << 'PROPS'
+          KEYSTORE_PATH=app/keystore/release.keystore
+          KEYSTORE_PASSWORD=evoai2024
+          KEY_ALIAS=evoai
+          KEY_PASSWORD=evoai2024
+          PROPS
+          cat local.properties
 
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
       - name: Build Release APK (Signed v2+v3)
-        run: ./gradlew assembleRelease
+        run: |
+          ./gradlew assembleRelease \
+            -PKEYSTORE_PATH=app/keystore/release.keystore \
+            -PKEYSTORE_PASSWORD=evoai2024 \
+            -PKEY_ALIAS=evoai \
+            -PKEY_PASSWORD=evoai2024
 
       - name: Verify APK exists
         run: |
-          ls -la app/build/outputs/apk/release/
+          ls -la app/build/outputs/apk/release/ || true
+          find app/build/outputs -name "*.apk" -type f || true
           if [ ! -f app/build/outputs/apk/release/app-release.apk ]; then
             echo "ERROR: APK not found!"
             exit 1
@@ -114,7 +124,7 @@ jobs:
       - name: Verify Release Contains APK
         run: |
           echo "Verifying release asset upload..."
-          sleep 3
+          sleep 5
           REPO="${{ github.repository }}"
           TAG="v1.0.0"
           RESPONSE=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \

@@ -7,22 +7,28 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// Load local.properties for signing
-val localProperties = Properties()
-val localPropertiesFile = rootProject.file("local.properties")
-if (localPropertiesFile.exists()) {
-    localProperties.load(FileInputStream(localPropertiesFile))
+// Load signing config from local.properties, environment variables, or project properties
+fun getSigningProperty(name: String): String? {
+    // 1. Try project properties (passed via -P flags or gradle.properties)
+    if (project.hasProperty(name)) {
+        return project.property(name) as? String
+    }
+    // 2. Try local.properties
+    val localProperties = Properties()
+    val localPropertiesFile = rootProject.file("local.properties")
+    if (localPropertiesFile.exists()) {
+        localProperties.load(FileInputStream(localPropertiesFile))
+        val value = localProperties.getProperty(name)
+        if (value != null) return value
+    }
+    // 3. Try environment variables
+    return System.getenv(name)
 }
 
-// Also load from environment variables (for CI)
-val keystorePath = localProperties.getProperty("KEYSTORE_PATH")
-    ?: System.getenv("KEYSTORE_PATH")
-val keystorePassword = localProperties.getProperty("KEYSTORE_PASSWORD")
-    ?: System.getenv("KEYSTORE_PASSWORD")
-val keyAlias = localProperties.getProperty("KEY_ALIAS")
-    ?: System.getenv("KEY_ALIAS")
-val keyPassword = localProperties.getProperty("KEY_PASSWORD")
-    ?: System.getenv("KEY_PASSWORD")
+val keystorePath: String? = getSigningProperty("KEYSTORE_PATH")
+val keystorePassword: String? = getSigningProperty("KEYSTORE_PASSWORD")
+val keyAlias: String? = getSigningProperty("KEY_ALIAS")
+val keyPassword: String? = getSigningProperty("KEY_PASSWORD")
 
 android {
     namespace = "com.evoai.trainer"
@@ -57,8 +63,8 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            // Use release signing if available, otherwise fallback to debug
-            signingConfig = if (keystorePath != null) {
+            // Use release signing if keystore is available, otherwise fallback to debug
+            signingConfig = if (keystorePath != null && rootProject.file(keystorePath).exists()) {
                 signingConfigs.getByName("release")
             } else {
                 signingConfigs.getByName("debug")

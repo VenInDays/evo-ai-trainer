@@ -5,7 +5,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import kotlin.random.Random
+import kotlin.math.min
 
 /**
  * Multi-Agent Evolutionary Training System.

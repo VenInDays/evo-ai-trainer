@@ -53,4 +53,16 @@
     <string name="train_val_split" formatted="false">Train: %d | Val: %d (80/20 split)</string>
     <string name="jitter_triggered" formatted="false">NEURAL JITTER at Gen %d!</string>
     <string name="session_recovered" formatted="false">Session recovered: Gen %d, Acc %.1f%%</string>
+<!-- V5 Universal Domain -->
+<string name="domain_label">Training Domain</string>
+<string name="domain_anime">Anime / Art</string>
+<string name="domain_gaming">Gaming / Textures</string>
+<string name="domain_safety">Safety / NSFW</string>
+<string name="domain_general">General</string>
+<string name="export_web">Package for Web</string>
+<string name="heatmap_title">AI Attention Map</string>
+<string name="processing_dataset">Processing dataset...</string>
+<string name="save_session">Save Session</string>
+<string name="session_saved">Session saved!</string>
+<string name="lineage_format" formatted="false">Grandchild of Model %d</string>
 </resources>

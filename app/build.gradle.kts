@@ -12,8 +12,8 @@ android {
         applicationId = "com.evoai.trainer"
         minSdk = 24
         targetSdk = 34
-        versionCode = 5
-        versionName = "4.0.1"
+        versionCode = 6
+        versionName = "5.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

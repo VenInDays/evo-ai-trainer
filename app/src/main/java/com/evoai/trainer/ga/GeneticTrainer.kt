@@ -1,6 +1,8 @@
 package com.evoai.trainer.ga
 
 import com.evoai.trainer.nn.NeuralNetwork
+import com.evoai.trainer.util.AdvancedFeatureExtractor
+import com.evoai.trainer.util.TrainingDomain
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -32,7 +34,7 @@ import kotlin.random.Random
  */
 class GeneticTrainer(
     private val populationSize: Int = 10,
-    private val inputSize: Int
+    private var inputSize: Int
 ) {
     private var bots: MutableList<Bot> = mutableListOf()
     private var generation: Int = 0
@@ -71,6 +73,12 @@ class GeneticTrainer(
 
     // V4: Average loss from the LAST evaluated generation (computed before new bots are created)
     private var lastGenAvgLoss: Float = 0f
+
+    // V5: Training domain
+    private var trainingDomain: TrainingDomain = TrainingDomain.GENERAL
+
+    // V5: Lineage chain tracking
+    private val lineageChain: MutableMap<Int, String> = mutableMapOf()
 
     // Callbacks
     var onGenerationComplete: ((gen: Int, bestAcc: Float, avgFitness: Float, bots: List<Bot>) -> Unit)? = null
@@ -115,6 +123,16 @@ class GeneticTrainer(
 
     fun getHardExamplesCount(): Int = hardExamples.size
 
+    // V5: Domain support
+    fun setDomain(domain: TrainingDomain) {
+        trainingDomain = domain
+        val config = AdvancedFeatureExtractor.ExtractionConfig(domain = domain)
+        inputSize = config.totalFeatureSize
+    }
+
+    // V5: Lineage chain
+    fun getLineageChain(botId: Int): String = lineageChain[botId] ?: ""
+
     /**
      * Initialize population with 10 fresh neural networks.
      * V4: Architecture upgraded to MLP with ReLU hidden + Sigmoid output.
@@ -132,16 +150,20 @@ class GeneticTrainer(
 
         synchronized(bots) {
             bots = mutableListOf()
+            lineageChain.clear()
             for (i in 0 until populationSize) {
                 // V4: Deeper MLP — 256→128→64→32→1 with ReLU hidden + Sigmoid output
                 val network = NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
+                val familyIdVal = nextFamilyId++
+                lineageChain[i] = "Model $familyIdVal"
                 bots.add(Bot(
                     id = i,
                     network = network,
                     lineage = BotLineage.CLONE,
                     mutationVariance = 0.05f,
-                    familyId = nextFamilyId++,
-                    generationBorn = 0
+                    familyId = familyIdVal,
+                    generationBorn = 0,
+                    lineageChain = "Model $familyIdVal"
                 ))
             }
         }
@@ -187,9 +209,8 @@ class GeneticTrainer(
             decayingMutationRate
         }
 
-        // Step 1: SELECTION — Teacher Bot evaluates all 10 models
-        // Use training set for batch selection
-        val effectiveTrainSet = if (trainSet.isNotEmpty()) trainSet else dataset
+        // V5: Batch shuffling — re-shuffle training batch at start of each generation
+        val effectiveTrainSet = if (trainSet.isNotEmpty()) trainSet.shuffled() else dataset.shuffled()
         val batch = if (hardExamples.isNotEmpty()) {
             // V4: Mix hard examples into training batch for priority learning
             val regularBatch = TeacherBot.selectBatch(effectiveTrainSet, batchSize.coerceAtMost(effectiveTrainSet.size - hardExamples.size))
@@ -206,18 +227,19 @@ class GeneticTrainer(
         onGenerationComplete?.invoke(generation, bestAccuracy, 0f, getBots())
 
         // Parallel evaluation using coroutines on Dispatchers.Default
+        // V5: Use forwardWithDropout during training evaluation
         val currentBots = getBots()
         val results = coroutineScope {
             currentBots.map { bot ->
                 async(Dispatchers.Default) {
-                    // V4: Evaluate with loss for tiebreaker
-                    val (fitness, accuracy, correct, avgLoss) = TeacherBot.evaluateBatchWithLoss(bot.network, batch)
+                    // V5: Evaluate with dropout for training, then use regular forward for scoring
+                    val (fitness, accuracy, correct, avgLoss) = TeacherBot.evaluateBatchWithLossAndDropout(bot.network, batch, 0.1f)
                     Quadruple(bot.id, fitness, accuracy, avgLoss)
                 }
             }.awaitAll()
         }
 
-        // V4: Evaluate on validation set for generalization score
+        // V4: Evaluate on validation set for generalization score (no dropout)
         val effectiveValSet = if (valSet.isNotEmpty()) valSet else {
             // Fallback: use a random subset as validation
             dataset.shuffled().take((dataset.size * 0.2f).toInt().coerceAtLeast(1))
@@ -328,6 +350,9 @@ class GeneticTrainer(
         // V3/V4: Retain Top 2 as LEGACY survivors (with jitter if applicable)
         // V4 FIX: Carry over fitness/accuracy/loss/valAccuracy to LEGACY bots so
         // getBots() returns meaningful metrics even before next evaluation
+        // V5: Carry over lineageChain
+        val elite1Chain = lineageChain[elite1.id] ?: "Model ${elite1.familyId}"
+        val elite2Chain = lineageChain[elite2.id] ?: "Model ${elite2.familyId}"
         newBots.add(Bot(
             id = 0,
             network = jitteredElite1.deepClone(),
@@ -340,7 +365,8 @@ class GeneticTrainer(
             parentRank = 1,
             familyId = elite1.familyId,
             generationBorn = elite1.generationBorn,
-            fitnessHistory = elite1.fitnessHistory.toMutableList()
+            fitnessHistory = elite1.fitnessHistory.toMutableList(),
+            lineageChain = elite1Chain
         ))
         newBots.add(Bot(
             id = 1,
@@ -354,8 +380,12 @@ class GeneticTrainer(
             parentRank = 2,
             familyId = elite2.familyId,
             generationBorn = elite2.generationBorn,
-            fitnessHistory = elite2.fitnessHistory.toMutableList()
+            fitnessHistory = elite2.fitnessHistory.toMutableList(),
+            lineageChain = elite2Chain
         ))
+        // V5: Update lineage chain for new bot IDs
+        lineageChain[0] = elite1Chain
+        lineageChain[1] = elite2Chain
 
         // Generate 4 mutated clones from Model A + 4 from Model B
         val clonesPerElite = (populationSize - 2) / 2  // = 4 each
@@ -381,15 +411,21 @@ class GeneticTrainer(
 
                 val familyId = if (lineage == BotLineage.RESET_RANDOM) nextFamilyId++ else elite1.familyId
 
+                val newBotId = botIdCounter++
+                // V5: Set lineage chain for clone
+                val newChain = if (lineage == BotLineage.RESET_RANDOM) "Reset #${nextFamilyId - 1}" else "${elite1Chain} → Clone Gen ${generation + 1}"
+                lineageChain[newBotId] = newChain
+
                 newBots.add(Bot(
-                    id = botIdCounter++,
+                    id = newBotId,
                     network = network,
                     status = BotStatus.READY,
                     lineage = lineage,
                     mutationVariance = mutationVariance,
                     parentRank = 1,
                     familyId = familyId,
-                    generationBorn = generation + 1
+                    generationBorn = generation + 1,
+                    lineageChain = newChain
                 ))
             }
 
@@ -412,15 +448,21 @@ class GeneticTrainer(
 
                 val familyId = if (lineage == BotLineage.RESET_RANDOM) nextFamilyId++ else elite2.familyId
 
+                val newBotId = botIdCounter++
+                // V5: Set lineage chain for clone
+                val newChain = if (lineage == BotLineage.RESET_RANDOM) "Reset #${nextFamilyId - 1}" else "${elite2Chain} → Clone Gen ${generation + 1}"
+                lineageChain[newBotId] = newChain
+
                 newBots.add(Bot(
-                    id = botIdCounter++,
+                    id = newBotId,
                     network = network,
                     status = BotStatus.READY,
                     lineage = lineage,
                     mutationVariance = mutationVariance,
                     parentRank = 2,
                     familyId = familyId,
-                    generationBorn = generation + 1
+                    generationBorn = generation + 1,
+                    lineageChain = newChain
                 ))
             }
         }
@@ -428,13 +470,17 @@ class GeneticTrainer(
         // If population is not full, add random models
         while (newBots.size < populationSize) {
             val randomNetwork = NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
+            val randomFamilyId = nextFamilyId++
+            val randomBotId = botIdCounter++
+            lineageChain[randomBotId] = "Reset #$randomFamilyId"
             newBots.add(Bot(
-                id = botIdCounter++,
+                id = randomBotId,
                 network = randomNetwork,
                 status = BotStatus.READY,
                 lineage = BotLineage.RESET_RANDOM,
-                familyId = nextFamilyId++,
-                generationBorn = generation + 1
+                familyId = randomFamilyId,
+                generationBorn = generation + 1,
+                lineageChain = "Reset #$randomFamilyId"
             ))
         }
 
@@ -442,14 +488,17 @@ class GeneticTrainer(
         if (elite1.fitness == 0f && elite2.fitness == 0f) {
             for (i in (newBots.size - 2) until newBots.size) {
                 val freshNetwork = NeuralNetwork(intArrayOf(inputSize, 128, 64, 32, 1))
+                val freshFamilyId = nextFamilyId++
+                lineageChain[newBots[i].id] = "Reset #$freshFamilyId"
                 newBots[i] = Bot(
                     id = newBots[i].id,
                     network = freshNetwork,
                     status = BotStatus.READY,
                     lineage = BotLineage.RESET_RANDOM,
                     mutationVariance = 0f,
-                    familyId = nextFamilyId++,
-                    generationBorn = generation + 1
+                    familyId = freshFamilyId,
+                    generationBorn = generation + 1,
+                    lineageChain = "Reset #$freshFamilyId"
                 )
             }
         }

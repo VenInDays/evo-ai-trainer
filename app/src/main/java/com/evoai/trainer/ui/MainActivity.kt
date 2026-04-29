@@ -7,6 +7,8 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.view.View
+import android.widget.ArrayAdapter
+import android.widget.AutoCompleteTextView
 import android.widget.ProgressBar
 import android.widget.ScrollView
 import android.widget.TextView
@@ -18,6 +20,8 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.evoai.trainer.R
 import com.evoai.trainer.ga.TeacherBot
+import com.evoai.trainer.ui.widget.HeatmapView
+import com.evoai.trainer.util.TrainingDomain
 import com.github.mikephil.charting.charts.LineChart
 import com.github.mikephil.charting.components.XAxis
 import com.github.mikephil.charting.data.Entry
@@ -83,6 +87,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvHistoryLog: TextView
     private lateinit var scrollHistoryLog: ScrollView
 
+    // V5: New views
+    private lateinit var spinnerDomain: AutoCompleteTextView
+    private lateinit var heatmapView: HeatmapView
+    private lateinit var layoutHeatmap: View
+    private lateinit var btnExportWeb: MaterialButton
+    private lateinit var btnSaveSession: MaterialButton
+    private lateinit var loadingOverlay: View
+    private lateinit var tvLoadingMessage: TextView
+    private lateinit var tvLabelNames: TextView
+
     private val botAdapter = BotAdapter()
 
     // Currently tested image URI (for Manual Override)
@@ -108,6 +122,21 @@ class MainActivity : AppCompatActivity() {
         ActivityResultContracts.GetContent()
     ) { uri: Uri? -> uri?.let { viewModel.importModel(it) } }
 
+    // V5: SAF export launcher for model files
+    private val safExportLauncher = registerForActivityResult(
+        ActivityResultContracts.CreateDocument("application/json")
+    ) { uri: Uri? ->
+        uri?.let { uri2 ->
+            pendingExportData?.let { data ->
+                viewModel.writeExportToUri(uri2, data)
+                pendingExportData = null
+            }
+        }
+    }
+
+    // V5: Pending export data for SAF
+    private var pendingExportData: String? = null
+
     // Permission launcher
     private val permissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
@@ -123,6 +152,7 @@ class MainActivity : AppCompatActivity() {
         initViews()
         setupChart()
         setupRecyclerView()
+        setupDomainDropdown()
         setupListeners()
         observeViewModel()
 
@@ -142,6 +172,7 @@ class MainActivity : AppCompatActivity() {
         tvLikesCount = findViewById(R.id.tvLikesCount)
         tvNonlikesCount = findViewById(R.id.tvNonlikesCount)
         tvTrainValSplit = findViewById(R.id.tvTrainValSplit)
+        tvLabelNames = findViewById(R.id.tvLabelNames)
         tvMutationRate = findViewById(R.id.tvMutationRate)
         tvTargetAccuracy = findViewById(R.id.tvTargetAccuracy)
         tvTrainingStatus = findViewById(R.id.tvTrainingStatus)
@@ -181,6 +212,27 @@ class MainActivity : AppCompatActivity() {
         // History log
         tvHistoryLog = findViewById(R.id.tvHistoryLog)
         scrollHistoryLog = findViewById(R.id.scrollHistoryLog)
+
+        // V5: New views
+        spinnerDomain = findViewById(R.id.spinnerDomain)
+        heatmapView = findViewById(R.id.heatmapView)
+        layoutHeatmap = findViewById(R.id.layoutHeatmap)
+        btnExportWeb = findViewById(R.id.btnExportWeb)
+        btnSaveSession = findViewById(R.id.btnSaveSession)
+        loadingOverlay = findViewById(R.id.loadingOverlay)
+        tvLoadingMessage = findViewById(R.id.tvLoadingMessage)
+    }
+
+    private fun setupDomainDropdown() {
+        val domainNames = TrainingDomain.values().map { it.displayName }
+        val adapter = ArrayAdapter(this, android.R.layout.simple_dropdown_item_1line, domainNames)
+        spinnerDomain.setAdapter(adapter)
+        spinnerDomain.setText(TrainingDomain.GENERAL.displayName, false)
+
+        spinnerDomain.setOnItemClickListener { _, _, position, _ ->
+            val domain = TrainingDomain.values()[position]
+            viewModel.setDomain(domain)
+        }
     }
 
     private fun setupChart() {
@@ -247,29 +299,68 @@ class MainActivity : AppCompatActivity() {
             cardTrainingStatus.visibility = View.GONE
             layoutInferenceResult.visibility = View.GONE
             cardConfusionMatrix.visibility = View.GONE
+            layoutHeatmap.visibility = View.GONE
             Toast.makeText(this, "Storage reset", Toast.LENGTH_SHORT).show()
         }
 
-        btnSaveModel.setOnClickListener { viewModel.exportModel() }
+        btnSaveModel.setOnClickListener {
+            // V5: Use SAF export
+            val exportData = viewModel.getExportModelData()
+            if (exportData != null) {
+                pendingExportData = exportData.first
+                safExportLauncher.launch(exportData.second)
+            } else {
+                viewModel.exportModel()
+            }
+        }
+
         btnLoadModel.setOnClickListener { openModelPicker() }
-        btnExportCheckpoint.setOnClickListener { viewModel.exportCheckpoint() }
+
+        btnExportCheckpoint.setOnClickListener {
+            // V5: Use SAF export
+            val exportData = viewModel.getExportCheckpointData()
+            if (exportData != null) {
+                pendingExportData = exportData.first
+                safExportLauncher.launch(exportData.second)
+            } else {
+                viewModel.exportCheckpoint()
+            }
+        }
+
+        // V5: Package for Web button
+        btnExportWeb.setOnClickListener {
+            val exportData = viewModel.getExportWebData()
+            if (exportData != null) {
+                pendingExportData = exportData.first
+                safExportLauncher.launch(exportData.second)
+            } else {
+                Toast.makeText(this, "No trained model to export", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        // V5: Save Session button
+        btnSaveSession.setOnClickListener {
+            viewModel.saveSession()
+        }
 
         btnTestImage.setOnClickListener { openImagePicker() }
 
         // V4: Manual Override — Correct the AI
         btnCorrectLike.setOnClickListener {
             currentTestImageUri?.let { uri ->
-                viewModel.addHardExample(uri, 1) // Correct to Like
+                viewModel.addHardExample(uri, 1)
                 layoutManualOverride.visibility = View.GONE
-                Toast.makeText(this, "Corrected to Like — added to Hard Examples", Toast.LENGTH_SHORT).show()
+                val labels = viewModel.labelNames.value ?: Pair("Like", "Non-like")
+                Toast.makeText(this, "Corrected to ${labels.first} — added to Hard Examples", Toast.LENGTH_SHORT).show()
             }
         }
 
         btnCorrectNonlike.setOnClickListener {
             currentTestImageUri?.let { uri ->
-                viewModel.addHardExample(uri, 0) // Correct to Non-like
+                viewModel.addHardExample(uri, 0)
                 layoutManualOverride.visibility = View.GONE
-                Toast.makeText(this, "Corrected to Non-like — added to Hard Examples", Toast.LENGTH_SHORT).show()
+                val labels = viewModel.labelNames.value ?: Pair("Like", "Non-like")
+                Toast.makeText(this, "Corrected to ${labels.second} — added to Hard Examples", Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -308,7 +399,6 @@ class MainActivity : AppCompatActivity() {
             tvActiveMutRate.text = String.format("%.3f", rate)
         }
 
-        // V4: Decaying Mutation Rate
         viewModel.decayingMutRate.observe(this) { rate ->
             tvDecayingMutRate.text = String.format("%.3f", rate)
         }
@@ -317,19 +407,24 @@ class MainActivity : AppCompatActivity() {
             progressTraining.progress = acc.toInt()
         }
 
-        // Avg fitness is tracked in history log
-
         viewModel.bots.observe(this) { bots -> botAdapter.updateBots(bots) }
 
         viewModel.datasetInfo.observe(this) { info ->
             if (info != null) {
                 tvDatasetStatus.text = String.format("Dataset: %d samples", info.totalSamples)
+                // V5: Use dynamic label names
+                val labels = info.labelNames
                 tvLikesCount.apply {
-                    text = String.format("Like: %d", info.likeCount)
+                    text = String.format("%s: %d", labels.first, info.likeCount)
                     visibility = View.VISIBLE
                 }
                 tvNonlikesCount.apply {
-                    text = String.format("Non-like: %d", info.nonlikeCount)
+                    text = String.format("%s: %d", labels.second, info.nonlikeCount)
+                    visibility = View.VISIBLE
+                }
+                // V5: Show label names
+                tvLabelNames.apply {
+                    text = String.format("Labels: %s / %s", labels.first, labels.second)
                     visibility = View.VISIBLE
                 }
                 // V4: Show train/val split
@@ -345,6 +440,7 @@ class MainActivity : AppCompatActivity() {
                 tvLikesCount.visibility = View.GONE
                 tvNonlikesCount.visibility = View.GONE
                 tvTrainValSplit.visibility = View.GONE
+                tvLabelNames.visibility = View.GONE
             }
         }
 
@@ -354,6 +450,8 @@ class MainActivity : AppCompatActivity() {
             btnSaveModel.isEnabled = !training
             btnLoadModel.isEnabled = !training
             btnExportCheckpoint.isEnabled = !training
+            btnExportWeb.isEnabled = !training
+            btnSaveSession.isEnabled = !training
             if (training) tvTrainingStatus.text = "Training in progress\u2026"
             else tvTrainingStatus.text = "Training paused"
         }
@@ -382,12 +480,10 @@ class MainActivity : AppCompatActivity() {
             event?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
 
-        // V4: Jitter event
         viewModel.jitterEvent.observe(this) { event ->
             event?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
 
-        // V4: Auto-recovery status
         viewModel.recoveryStatus.observe(this) { status ->
             status?.let { Toast.makeText(this, it, Toast.LENGTH_LONG).show() }
         }
@@ -396,7 +492,8 @@ class MainActivity : AppCompatActivity() {
             result?.let {
                 layoutInferenceResult.visibility = View.VISIBLE
 
-                val isLike = it.label == "Like"
+                val labels = viewModel.labelNames.value ?: Pair("Like", "Non-like")
+                val isLike = it.label == labels.first
                 val color = if (isLike) ContextCompat.getColor(this, R.color.emerald_success)
                             else ContextCompat.getColor(this, R.color.error_red)
 
@@ -421,6 +518,33 @@ class MainActivity : AppCompatActivity() {
                 val bg = viewInferenceIndicator.background as? GradientDrawable
                 bg?.setColor(color)
             }
+        }
+
+        // V5: Heatmap data observer
+        viewModel.heatmapData.observe(this) { data ->
+            if (data != null && data.isNotEmpty()) {
+                val domain = viewModel.getCurrentDomain()
+                val config = com.evoai.trainer.util.AdvancedFeatureExtractor.ExtractionConfig(domain = domain)
+                val resolution = config.resolution
+                if (data.size >= resolution * resolution) {
+                    heatmapView.setData(data.copyOfRange(0, resolution * resolution), resolution, resolution)
+                    layoutHeatmap.visibility = View.VISIBLE
+                }
+            } else {
+                layoutHeatmap.visibility = View.GONE
+            }
+        }
+
+        // V5: Loading overlay
+        viewModel.isLoadingDataset.observe(this) { isLoading ->
+            loadingOverlay.visibility = if (isLoading) View.VISIBLE else View.GONE
+        }
+
+        // V5: Dynamic label names
+        viewModel.labelNames.observe(this) { labels ->
+            // Update manual override button texts
+            btnCorrectLike.text = "Correct: ${labels.first}"
+            btnCorrectNonlike.text = "Correct: ${labels.second}"
         }
 
         // V4: Confusion Matrix observer

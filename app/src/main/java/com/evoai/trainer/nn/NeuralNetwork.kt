@@ -166,28 +166,70 @@ class NeuralNetwork(
     }
 
     /**
+     * V5: Forward pass with Dropout simulation for training.
+     * Randomly zeros out activations in hidden layers (not output),
+     * then scales remaining by 1/(1-dropRate) (inverted dropout).
+     * Use this during training only; use forward() for inference.
+     */
+    fun forwardWithDropout(input: FloatArray, dropRate: Float): FloatArray {
+        var activation = input
+        for (layerIdx in weights.indices) {
+            val w = weights[layerIdx]
+            val b = biases[layerIdx]
+            val act = activations[layerIdx]
+            val isOutputLayer = (layerIdx == weights.size - 1)
+            val output = FloatArray(w.size)
+
+            for (j in w.indices) {
+                var sum = b[j]
+                for (k in activation.indices) {
+                    sum += w[j][k] * activation[k]
+                }
+                output[j] = when (act) {
+                    Activation.RELU -> relu(sum)
+                    Activation.SIGMOID -> sigmoid(sum)
+                }
+            }
+
+            // V5: Apply inverted dropout to hidden layers only
+            if (!isOutputLayer && dropRate > 0f) {
+                val scale = 1f / (1f - dropRate)
+                for (j in output.indices) {
+                    if (rng.nextFloat() < dropRate) {
+                        output[j] = 0f
+                    } else {
+                        output[j] *= scale
+                    }
+                }
+            }
+
+            activation = output
+        }
+        return activation
+    }
+
+    /**
      * Deep-clone this network (exact copy, no mutation).
+     * V5: Uses System.arraycopy for better performance.
      * Thread-safe: creates completely independent weight arrays.
      */
     fun deepClone(): NeuralNetwork {
         val newWeights = mutableListOf<Array<FloatArray>>()
         val newBiases = mutableListOf<FloatArray>()
-
         for (layerIdx in weights.indices) {
             val w = weights[layerIdx]
             val b = biases[layerIdx]
-            val newW = Array(w.size) { j -> w[j].copyOf() }
-            val newB = b.copyOf()
+            val newW = Array(w.size) { j ->
+                val row = FloatArray(w[j].size)
+                System.arraycopy(w[j], 0, row, 0, w[j].size)
+                row
+            }
+            val newB = FloatArray(b.size)
+            System.arraycopy(b, 0, newB, 0, b.size)
             newWeights.add(newW)
             newBiases.add(newB)
         }
-
-        return NeuralNetwork(
-            layerSizes.copyOf(),
-            newWeights,
-            newBiases,
-            activations.toMutableList()
-        )
+        return NeuralNetwork(layerSizes.copyOf(), newWeights, newBiases, activations.toMutableList())
     }
 
     /**
@@ -369,9 +411,49 @@ class NeuralNetwork(
         val modelData = ModelData(
             layerSizes = layerSizes.toList(),
             layers = layers,
-            version = "4.0.0"
+            version = "5.0.0"
         )
         return gson.toJson(modelData)
+    }
+
+    /**
+     * V5: Export model in TensorFlow.js compatible format.
+     */
+    fun toTfjsJson(): String {
+        val gson = Gson()
+        val tfjsModel = mapOf(
+            "modelTopology" to mapOf(
+                "class_name" to "Sequential",
+                "config" to mapOf(
+                    "name" to "evoai_model",
+                    "layers" to weights.indices.map { i ->
+                        mapOf(
+                            "class_name" to "Dense",
+                            "config" to mapOf(
+                                "units" to weights[i].size,
+                                "activation" to activations[i].name.lowercase(),
+                                "name" to "dense_$i"
+                            )
+                        )
+                    }
+                )
+            ),
+            "weightsManifest" to listOf(
+                mapOf(
+                    "paths" to listOf("group1-shard1of1.bin"),
+                    "weights" to weights.indices.flatMap { i ->
+                        listOf(
+                            mapOf("name" to "dense_${i}_kernel", "shape" to listOf(weights[i][0].size, weights[i].size), "dtype" to "float32"),
+                            mapOf("name" to "dense_${i}_bias", "shape" to listOf(weights[i].size), "dtype" to "float32")
+                        )
+                    }
+                )
+            ),
+            "format" to "layers-model",
+            "generatedBy" to "EvoAI Trainer v5.0.0",
+            "weightsFormat" to "bin"
+        )
+        return gson.toJson(tfjsModel)
     }
 }
 
@@ -379,7 +461,7 @@ class NeuralNetwork(
 data class ModelData(
     @SerializedName("layerSizes") val layerSizes: List<Int>,
     @SerializedName("layers") val layers: List<LayerData>,
-    @SerializedName("version") val version: String = "4.0.0"
+    @SerializedName("version") val version: String = "5.0.0"
 )
 
 data class LayerData(
@@ -400,7 +482,7 @@ data class CheckpointData(
     @SerializedName("mutationRate") val mutationRate: Float,
     @SerializedName("decayingMutationRate") val decayingMutationRate: Float = 0f,
     @SerializedName("fitnessHistory") val fitnessHistory: List<HistoryEntry>,
-    @SerializedName("version") val version: String = "4.0.0"
+    @SerializedName("version") val version: String = "5.0.0"
 )
 
 data class HistoryEntry(

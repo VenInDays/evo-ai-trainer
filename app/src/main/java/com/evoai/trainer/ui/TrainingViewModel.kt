@@ -1,12 +1,8 @@
 package com.evoai.trainer.ui
 
 import android.app.Application
-import android.content.ContentValues
 import android.graphics.BitmapFactory
 import android.net.Uri
-import android.os.Build
-import android.os.Environment
-import android.provider.MediaStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
@@ -25,6 +21,8 @@ import com.evoai.trainer.ga.TeacherBot
 import com.evoai.trainer.nn.CheckpointData
 import com.evoai.trainer.nn.HistoryEntry
 import com.evoai.trainer.nn.NeuralNetwork
+import com.evoai.trainer.util.AdvancedFeatureExtractor
+import com.evoai.trainer.util.TrainingDomain
 import com.evoai.trainer.util.ZipDatasetParser
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
@@ -45,7 +43,10 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
     private var dataset: List<Pair<FloatArray, Int>> = emptyList()
     private var trainSet: List<Pair<FloatArray, Int>> = emptyList()
     private var valSet: List<Pair<FloatArray, Int>> = emptyList()
-    private var featureSize: Int = 256 // 16x16
+    private var featureSize: Int = 256 // default for GENERAL domain
+
+    // V5: Current training domain
+    private var currentDomain: TrainingDomain = TrainingDomain.GENERAL
 
     // LiveData
     private val _generation = MutableLiveData(0)
@@ -127,11 +128,26 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
     private val _recoveryStatus = MutableLiveData<String?>(null)
     val recoveryStatus: LiveData<String?> = _recoveryStatus
 
+    // V5: Dynamic label names
+    private val _labelNames = MutableLiveData<Pair<String, String>>(Pair("Like", "Non-like"))
+    val labelNames: LiveData<Pair<String, String>> = _labelNames
+
+    // V5: Heatmap data for visualization
+    private val _heatmapData = MutableLiveData<FloatArray?>(null)
+    val heatmapData: LiveData<FloatArray?> = _heatmapData
+
+    // V5: Loading state for ZIP processing
+    private val _isLoadingDataset = MutableLiveData(false)
+    val isLoadingDataset: LiveData<Boolean> = _isLoadingDataset
+
     private var mutationRate: Float = 0.05f
     private var targetAccuracy: Float = 90f
 
     // History log entries buffer
     private val historyLogEntries = mutableListOf<String>()
+
+    // V5: Current test image URI for heatmap
+    private var lastTestImageUri: Uri? = null
 
     fun setMutationRate(rate: Float) {
         mutationRate = rate
@@ -142,14 +158,24 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
         trainer?.setTargetAccuracy(target)
     }
 
+    // V5: Set training domain
+    fun setDomain(domain: TrainingDomain) {
+        currentDomain = domain
+        ZipDatasetParser.currentDomain = domain
+        trainer?.setDomain(domain)
+    }
+
+    fun getCurrentDomain(): TrainingDomain = currentDomain
+
     fun loadDataset(uri: Uri) {
         viewModelScope.launch {
+            _isLoadingDataset.value = true
             try {
                 val result = withContext(Dispatchers.IO) {
                     val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
                         ?: throw Exception("Cannot open file")
                     val zipInputStream = java.util.zip.ZipInputStream(inputStream)
-                    ZipDatasetParser.parseZip(zipInputStream)
+                    ZipDatasetParser.parseZip(zipInputStream, currentDomain)
                 }
 
                 dataset = result.samples
@@ -157,6 +183,13 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                 valSet = result.valSamples
                 featureSize = result.featureSize
                 _datasetInfo.value = result
+
+                // V5: Update label names
+                _labelNames.value = result.labelNames
+
+                // V5: Update feature size based on domain config
+                val config = AdvancedFeatureExtractor.ExtractionConfig(domain = currentDomain)
+                featureSize = config.totalFeatureSize
 
                 withContext(Dispatchers.IO) {
                     db.botDao().insertDatasetMeta(
@@ -167,7 +200,10 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                             totalSamples = result.totalSamples,
                             trainSamples = result.trainSamples.size,
                             valSamples = result.valSamples.size,
-                            featureSize = result.featureSize
+                            featureSize = result.featureSize,
+                            domain = currentDomain.name,
+                            labelPositive = result.labelNames.first,
+                            labelNegative = result.labelNames.second
                         )
                     )
                 }
@@ -176,6 +212,8 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                     populationSize = 10,
                     inputSize = result.featureSize
                 ).apply {
+                    // V5: Set domain on trainer
+                    setDomain(currentDomain)
                     // V4: Set cross-validation sets
                     setCrossValidationSets(trainSet, valSet)
                     setTargetAccuracy(targetAccuracy)
@@ -184,6 +222,8 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                 }
             } catch (e: Exception) {
                 _error.value = "Failed to load dataset: ${e.message}"
+            } finally {
+                _isLoadingDataset.value = false
             }
         }
     }
@@ -208,13 +248,11 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
         currentTrainer.onAutoSave = { networks, gen, acc ->
             viewModelScope.launch {
                 withContext(Dispatchers.IO) {
-                    // V4: Save champion to Internal Storage instead of SharedPreferences
                     if (networks.isNotEmpty()) {
                         val championJson = networks[0].toJson()
                         saveModelToInternalStorage("champion_gen$gen.model", championJson)
                         saveModelToInternalStorage("latest_checkpoint.model", championJson)
 
-                        // Also save checkpoint with full state
                         val checkpoint = CheckpointData(
                             model = com.evoai.trainer.nn.ModelData(
                                 layerSizes = networks[0].layerSizes.toList(),
@@ -237,7 +275,6 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                         val checkpointJson = gson.toJson(checkpoint)
                         saveModelToInternalStorage("latest_checkpoint.ckpt", checkpointJson)
 
-                        // Also save to Room for backward compat
                         db.botDao().insertCheckpoint(
                             BestModelCheckpointEntity(
                                 generation = gen,
@@ -307,10 +344,6 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                     history.add(Pair(gen, acc))
                     _fitnessHistory.postValue(history.toList())
 
-                    // V4 FIX: Use getLastGenAvgLoss() from trainer — computed from EVALUATED bots
-                    // BEFORE new generation replaces them. The old approach was broken because
-                    // getBots() returns NEW unevaluated bots with loss=Float.MAX_VALUE,
-                    // causing .average() on empty list → NaN → SQLite NOT NULL constraint failure.
                     val avgLoss = currentTrainer.getLastGenAvgLoss()
                     val logEntry = String.format(
                         "Gen %d: Val %.1f%% | Loss %.3f | Decay %.3f | Stag %d",
@@ -384,7 +417,6 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                 db.botDao().deleteAllCheckpoints()
                 db.botDao().deleteAllHardExamples()
 
-                // V4: Delete internal storage model files
                 deleteInternalStorageModel("latest_checkpoint.model")
                 deleteInternalStorageModel("latest_checkpoint.ckpt")
             }
@@ -408,37 +440,103 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
             _inferenceResult.value = null
             _confusionMatrix.value = null
             _hardExamplesCount.value = 0
+            _heatmapData.value = null
+            _labelNames.value = Pair("Like", "Non-like")
         }
     }
 
     // ========== V4: Internal Storage Model Save/Load ==========
 
-    /**
-     * V4: Save model JSON to Internal Storage (context.filesDir).
-     * Replaces SharedPreferences for large weight arrays — more reliable.
-     */
     private fun saveModelToInternalStorage(fileName: String, json: String) {
         val file = File(appContext.filesDir, fileName)
         file.writeText(json)
     }
 
-    /**
-     * V4: Load model JSON from Internal Storage.
-     */
     private fun loadModelFromInternalStorage(fileName: String): String? {
         val file = File(appContext.filesDir, fileName)
         return if (file.exists()) file.readText() else null
     }
 
-    /**
-     * V4: Delete a model file from Internal Storage.
-     */
     private fun deleteInternalStorageModel(fileName: String) {
         val file = File(appContext.filesDir, fileName)
         if (file.exists()) file.delete()
     }
 
     // ========== Export / Import ==========
+
+    /**
+     * V5: Get export model data for SAF (Storage Access Framework) export.
+     * Returns (json, filename) or null if no model available.
+     */
+    fun getExportModelData(): Pair<String, String>? {
+        val bestNetwork = trainer?.getBestNetwork() ?: return null
+        val json = bestNetwork.toJson()
+        val fileName = "evoai_model_gen${_generation.value}.model"
+        return Pair(json, fileName)
+    }
+
+    /**
+     * V5: Get export checkpoint data for SAF export.
+     */
+    fun getExportCheckpointData(): Pair<String, String>? {
+        val bestNetwork = trainer?.getBestNetwork() ?: return null
+        val modelData = com.evoai.trainer.nn.ModelData(
+            layerSizes = bestNetwork.layerSizes.toList(),
+            layers = bestNetwork.weights.indices.map { i ->
+                com.evoai.trainer.nn.LayerData(
+                    weights = bestNetwork.weights[i].map { row -> row.toList() },
+                    biases = bestNetwork.biases[i].toList(),
+                    activation = bestNetwork.activations[i].name
+                )
+            }
+        )
+
+        val historyEntries = _fitnessHistory.value?.map { (gen, acc) ->
+            HistoryEntry(gen, acc)
+        } ?: emptyList()
+
+        val checkpoint = CheckpointData(
+            model = modelData,
+            generation = _generation.value ?: 0,
+            bestAccuracy = _bestAccuracy.value ?: 0f,
+            avgFitness = _avgFitness.value ?: 0f,
+            avgLoss = 0f,
+            mutationRate = mutationRate,
+            decayingMutationRate = trainer?.getDecayingMutationRate() ?: mutationRate,
+            fitnessHistory = historyEntries
+        )
+
+        val json = gson.toJson(checkpoint)
+        val fileName = "evoai_checkpoint_gen${_generation.value}.ckpt"
+        return Pair(json, fileName)
+    }
+
+    /**
+     * V5: Get TensorFlow.js compatible export data for SAF export.
+     */
+    fun getExportWebData(): Pair<String, String>? {
+        val bestNetwork = trainer?.getBestNetwork() ?: return null
+        val tfjsFormat = bestNetwork.toTfjsJson()
+        val fileName = "evoai_model_gen${_generation.value}_tfjs.json"
+        return Pair(tfjsFormat, fileName)
+    }
+
+    /**
+     * V5: Write export data to a URI (from SAF).
+     */
+    fun writeExportToUri(uri: Uri, data: String) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val outputStream: OutputStream? = appContext.contentResolver.openOutputStream(uri)
+                    outputStream?.use { it.write(data.toByteArray()) }
+                }
+                _exportStatus.value = "Model exported successfully!"
+            } catch (e: Exception) {
+                _error.value = "Export failed: ${e.message}"
+            }
+        }
+    }
 
     /**
      * Export best model as .model file (JSON, inference-only weights).
@@ -457,10 +555,7 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                 val fileName = "evoai_model_gen${_generation.value}.model"
 
                 withContext(Dispatchers.IO) {
-                    // V4: Save to Internal Storage first
                     saveModelToInternalStorage("export_$fileName", json)
-                    // Also save to Downloads for user access
-                    saveFileToDownloads(fileName, json.toByteArray())
                 }
 
                 _exportStatus.value = "Model exported: $fileName"
@@ -513,7 +608,6 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
 
                 withContext(Dispatchers.IO) {
                     saveModelToInternalStorage("export_$fileName", json)
-                    saveFileToDownloads(fileName, json.toByteArray())
                 }
 
                 _exportStatus.value = "Checkpoint exported: $fileName"
@@ -551,6 +645,7 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                         _fitnessHistory.value = historyPairs
 
                         trainer = GeneticTrainer(populationSize = 10, inputSize = network.layerSizes.first()).apply {
+                            setDomain(currentDomain)
                             setCrossValidationSets(trainSet, valSet)
                             setTargetAccuracy(targetAccuracy)
                             initializePopulation()
@@ -568,6 +663,7 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                         val network = NeuralNetwork.fromJson(content)
 
                         trainer = GeneticTrainer(populationSize = 10, inputSize = network.layerSizes.first()).apply {
+                            setDomain(currentDomain)
                             setCrossValidationSets(trainSet, valSet)
                             setTargetAccuracy(targetAccuracy)
                             initializePopulation()
@@ -595,30 +691,49 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * Run inference on a single image from the gallery.
-     * V4: Returns label + confidence + isUncertain flag.
+     * V5: Returns label using dynamic label names + confidence + isUncertain flag.
+     * V5: Also computes heatmap data (gradient-based attention map).
      */
     fun testImage(uri: Uri) {
         viewModelScope.launch {
             try {
+                lastTestImageUri = uri
                 val result = withContext(Dispatchers.IO) {
                     val inputStream = getApplication<Application>().contentResolver.openInputStream(uri)
                         ?: throw Exception("Cannot open image")
                     val bitmap = BitmapFactory.decodeStream(inputStream)
                         ?: throw Exception("Cannot decode image")
 
-                    val features = ZipDatasetParser.extractFeaturesFromBitmap(bitmap)
+                    val config = AdvancedFeatureExtractor.ExtractionConfig(domain = currentDomain)
+                    val features = ZipDatasetParser.extractFeaturesFromBitmap(bitmap, config)
+                    
+                    // V5: Compute heatmap data from grayscale pixel features
+                    val resolution = config.resolution
+                    val heatmapInput = features.copyOfRange(0, resolution * resolution)
+                    
                     bitmap.recycle()
 
                     val currentTrainer = trainer ?: throw Exception("No model available - train first")
-                    currentTrainer.predict(features)
+                    val prediction = currentTrainer.predict(features)
+                    
+                    Pair(prediction, Pair(features, heatmapInput))
                 }
 
-                val isUncertain = result.second < 0.5f
+                val (prediction, data) = result
+                val (featuresPair, heatmapInput) = data
+                
+                val labels = _labelNames.value ?: Pair("Like", "Non-like")
+                val label = if (prediction.first == 1) labels.first else labels.second
+                val isUncertain = prediction.second < 0.5f
+
                 _inferenceResult.value = InferenceResult(
-                    label = if (result.first == 1) "Like" else "Non-like",
-                    confidence = result.second * 100f,
+                    label = label,
+                    confidence = prediction.second * 100f,
                     isUncertain = isUncertain
                 )
+
+                // V5: Set heatmap data for visualization
+                _heatmapData.value = heatmapInput
             } catch (e: Exception) {
                 _error.value = "Inference failed: ${e.message}"
             }
@@ -629,7 +744,6 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
 
     /**
      * V4: Add a corrected label for a test image to Hard Examples.
-     * This image will be prioritized in the next training loop.
      */
     fun addHardExample(imageUri: Uri, correctLabel: Int) {
         viewModelScope.launch {
@@ -640,7 +754,8 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                     val bitmap = BitmapFactory.decodeStream(inputStream)
                         ?: throw Exception("Cannot decode image")
 
-                    val features = ZipDatasetParser.extractFeaturesFromBitmap(bitmap)
+                    val config = AdvancedFeatureExtractor.ExtractionConfig(domain = currentDomain)
+                    val features = ZipDatasetParser.extractFeaturesFromBitmap(bitmap, config)
                     bitmap.recycle()
 
                     val serializedFeatures = features.joinToString(",")
@@ -652,7 +767,6 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                         )
                     )
 
-                    // Also add to trainer for immediate effect
                     trainer?.addHardExample(features, correctLabel)
                 }
                 _hardExamplesCount.value = (trainer?.getHardExamplesCount() ?: 0)
@@ -663,35 +777,39 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    // ========== Helpers ==========
+    // ========== V5: Session Save ==========
 
-    private fun saveFileToDownloads(fileName: String, data: ByteArray) {
-        val context = getApplication<Application>()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            val values = ContentValues().apply {
-                put(MediaStore.Downloads.DISPLAY_NAME, fileName)
-                put(MediaStore.Downloads.MIME_TYPE, "application/json")
-                put(MediaStore.Downloads.IS_PENDING, 1)
-            }
-            val uri = context.contentResolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values)
-            uri?.let {
-                context.contentResolver.openOutputStream(it)?.use { os: OutputStream ->
-                    os.write(data)
+    /**
+     * V5: Save the full training session to internal storage.
+     */
+    fun saveSession() {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    val bestNetwork = trainer?.getBestNetwork()
+                    if (bestNetwork != null) {
+                        val sessionData = mapOf(
+                            "domain" to currentDomain.name,
+                            "generation" to (_generation.value ?: 0),
+                            "bestAccuracy" to (_bestAccuracy.value ?: 0f),
+                            "mutationRate" to mutationRate,
+                            "targetAccuracy" to targetAccuracy,
+                            "model" to bestNetwork.toJson()
+                        )
+                        saveModelToInternalStorage("session_v5.json", gson.toJson(sessionData))
+                    }
                 }
-                values.clear()
-                values.put(MediaStore.Downloads.IS_PENDING, 0)
-                context.contentResolver.update(uri, values, null, null)
+                _exportStatus.value = "Session saved!"
+            } catch (e: Exception) {
+                _error.value = "Failed to save session: ${e.message}"
             }
-        } else {
-            val dir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-            val file = java.io.File(dir, fileName)
-            file.writeBytes(data)
         }
     }
 
+    // ========== Helpers ==========
+
     /**
      * V4: Auto-Recovery — Load Last Session from Internal Storage on startup.
-     * Checks for latest_checkpoint.json first, then falls back to Room DB.
      */
     fun restoreState() {
         viewModelScope.launch {
@@ -717,6 +835,7 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
 
                         // Recreate trainer with the loaded network
                         trainer = GeneticTrainer(populationSize = 10, inputSize = network.layerSizes.first()).apply {
+                            setDomain(currentDomain)
                             setCrossValidationSets(trainSet, valSet)
                             setTargetAccuracy(targetAccuracy)
                             initializePopulation()
@@ -764,13 +883,26 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                 }
 
                 if (meta != null) {
+                    // V5: Restore domain and label names
+                    val domain = try {
+                        TrainingDomain.valueOf(meta.domain)
+                    } catch (_: Exception) {
+                        TrainingDomain.GENERAL
+                    }
+                    currentDomain = domain
+                    ZipDatasetParser.currentDomain = domain
+
+                    _labelNames.value = Pair(meta.labelPositive, meta.labelNegative)
+
                     _datasetInfo.value = ZipDatasetParser.DatasetResult(
                         samples = emptyList(),
                         trainSamples = emptyList(),
                         valSamples = emptyList(),
                         likeCount = meta.likeCount,
                         nonlikeCount = meta.nonlikeCount,
-                        featureSize = meta.featureSize
+                        featureSize = meta.featureSize,
+                        domain = domain,
+                        labelNames = Pair(meta.labelPositive, meta.labelNegative)
                     )
                 }
 
@@ -787,5 +919,5 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
 data class InferenceResult(
     val label: String,
     val confidence: Float,
-    val isUncertain: Boolean = false  // V4: <50% confidence = Uncertain
+    val isUncertain: Boolean = false
 )

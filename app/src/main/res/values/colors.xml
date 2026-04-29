@@ -42,4 +42,7 @@
     <color name="bot_idle">#DEE2E6</color>
     <color name="bot_active">#5B7FFF</color>
     <color name="bot_best">#2ECC71</color>
+
+    <!-- V5: Domain color -->
+    <color name="domain_purple">#9B59B6</color>
 </resources>

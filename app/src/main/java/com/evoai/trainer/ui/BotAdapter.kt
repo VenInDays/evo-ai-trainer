@@ -112,7 +112,8 @@ class BotAdapter : RecyclerView.Adapter<BotAdapter.BotViewHolder>() {
                     tvMutationVariance.visibility = View.GONE
                 }
                 BotLineage.CLONE -> {
-                    tvLineageBadge.text = String.format("GEN %d CLONE", bot.generationBorn)
+                    val chainText = if (bot.lineageChain.isNotEmpty()) bot.lineageChain else String.format("GEN %d CLONE", bot.generationBorn)
+                    tvLineageBadge.text = chainText.take(20)
                     tvLineageBadge.setBackgroundResource(R.drawable.badge_clone)
                     tvLineageBadge.setTextColor(ContextCompat.getColor(itemView.context, R.color.white_pure))
                     tvLineageBadge.visibility = View.VISIBLE

@@ -308,6 +308,17 @@
                             android:textSize="11sp"
                             android:visibility="gone"
                             android:layout_marginTop="2dp" />
+
+                        <!-- V5: Dynamic Label Names -->
+                        <TextView
+                            android:id="@+id/tvLabelNames"
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:textColor="@color/navy_primary"
+                            android:textSize="11sp"
+                            android:fontFamily="sans-serif-medium"
+                            android:visibility="gone"
+                            android:layout_marginTop="2dp" />
                     </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
@@ -325,6 +336,45 @@
                     android:layout_height="wrap_content"
                     android:orientation="vertical"
                     android:padding="14dp">
+
+                    <!-- V5: Training Domain Selector -->
+                    <LinearLayout
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:orientation="horizontal"
+                        android:gravity="center_vertical"
+                        android:layout_marginBottom="8dp">
+
+                        <TextView
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_weight="1"
+                            android:text="Training Domain"
+                            android:textColor="@color/gray_700"
+                            android:textSize="13sp"
+                            android:fontFamily="sans-serif-medium" />
+
+                        <com.google.android.material.textfield.TextInputLayout
+                            android:id="@+id/layoutDomainDropdown"
+                            style="@style/Widget.Material3.TextInputLayout.FilledBox.Dense.ExposedDropdownMenu"
+                            android:layout_width="180dp"
+                            android:layout_height="wrap_content"
+                            app:boxCornerRadiusTopStart="8dp"
+                            app:boxCornerRadiusTopEnd="8dp"
+                            app:boxCornerRadiusBottomStart="8dp"
+                            app:boxCornerRadiusBottomEnd="8dp">
+
+                            <AutoCompleteTextView
+                                android:id="@+id/spinnerDomain"
+                                android:layout_width="match_parent"
+                                android:layout_height="44dp"
+                                android:inputType="none"
+                                android:text="General"
+                                android:textSize="13sp"
+                                android:paddingStart="12dp"
+                                android:paddingEnd="8dp" />
+                        </com.google.android.material.textfield.TextInputLayout>
+                    </LinearLayout>
 
                     <!-- Mutation Rate -->
                     <LinearLayout
@@ -682,6 +732,32 @@
                                 android:layout_marginStart="6dp" />
                         </LinearLayout>
 
+                        <!-- V5: Heatmap Overlay -->
+                        <LinearLayout
+                            android:id="@+id/layoutHeatmap"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:orientation="vertical"
+                            android:gravity="center"
+                            android:layout_marginTop="8dp"
+                            android:visibility="gone">
+
+                            <TextView
+                                android:layout_width="wrap_content"
+                                android:layout_height="wrap_content"
+                                android:text="AI Attention Map"
+                                android:textSize="10sp"
+                                android:textColor="@color/gray_500"
+                                android:fontFamily="sans-serif-medium"
+                                android:textAllCaps="true" />
+
+                            <com.evoai.trainer.ui.widget.HeatmapView
+                                android:id="@+id/heatmapView"
+                                android:layout_width="128dp"
+                                android:layout_height="128dp"
+                                android:layout_marginTop="4dp" />
+                        </LinearLayout>
+
                         <!-- V4: Uncertain indicator -->
                         <TextView
                             android:id="@+id/tvUncertainBadge"
@@ -1010,6 +1086,38 @@
                 app:icon="@android:drawable/ic_menu_save"
                 app:iconGravity="textStart" />
 
+            <!-- V5: Package for Web button row -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="horizontal"
+                android:layout_marginBottom="6dp">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnSaveSession"
+                    style="@style/ControlButton.Outlined"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_marginEnd="4dp"
+                    android:text="Save Session"
+                    android:textSize="12sp"
+                    app:icon="@android:drawable/ic_menu_save"
+                    app:iconGravity="textStart" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btnExportWeb"
+                    style="@style/ControlButton.Outlined"
+                    android:layout_width="0dp"
+                    android:layout_height="48dp"
+                    android:layout_weight="1"
+                    android:layout_marginStart="4dp"
+                    android:text="Package for Web"
+                    android:textSize="12sp"
+                    app:icon="@android:drawable/ic_menu_upload"
+                    app:iconGravity="textStart" />
+            </LinearLayout>
+
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btnResetStorage"
                 style="@style/ControlButton.Danger"
@@ -1023,4 +1131,39 @@
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
+
+    <!-- V5: Loading Overlay for ZIP processing -->
+    <FrameLayout
+        android:id="@+id/loadingOverlay"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#CC000000"
+        android:visibility="gone"
+        android:clickable="true"
+        android:focusable="true"
+        android:gravity="center">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:orientation="vertical"
+            android:gravity="center">
+
+            <ProgressBar
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:indeterminateTint="@color/emerald_success" />
+
+            <TextView
+                android:id="@+id/tvLoadingMessage"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="Processing dataset..."
+                android:textColor="@color/white_pure"
+                android:textSize="14sp"
+                android:fontFamily="sans-serif-medium"
+                android:layout_marginTop="12dp" />
+        </LinearLayout>
+    </FrameLayout>
 </androidx.coordinatorlayout.widget.CoordinatorLayout>

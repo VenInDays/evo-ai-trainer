@@ -52,6 +52,9 @@ data class DatasetMetaEntity(
     val trainSamples: Int = 0,       // V4: Training set size
     val valSamples: Int = 0,         // V4: Validation set size
     val featureSize: Int,
+    val domain: String = "GENERAL",  // V5: Training domain
+    val labelPositive: String = "Like",  // V5: Dynamic label for class 1
+    val labelNegative: String = "Non-like",  // V5: Dynamic label for class 0
     val loadedAt: Long = System.currentTimeMillis()
 )
 

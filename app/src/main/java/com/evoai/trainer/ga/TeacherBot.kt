@@ -69,6 +69,46 @@ object TeacherBot {
     }
 
     /**
+     * V5: Evaluate with loss and dropout — returns fitness, accuracy, correctCount, avgLoss.
+     * Uses forwardWithDropout during evaluation for regularization.
+     */
+    fun evaluateBatchWithLossAndDropout(
+        network: NeuralNetwork,
+        batch: List<Pair<FloatArray, Int>>,
+        dropRate: Float = 0.1f
+    ): Quadruple<Float, Float, Int, Float> {
+        if (batch.isEmpty()) return Quadruple(0f, 0f, 0, 0f)
+
+        var correct = 0
+        var fitness = 0f
+        var totalLoss = 0f
+
+        for ((input, label) in batch) {
+            val output = network.forwardWithDropout(input, dropRate)[0]
+            val prediction = if (output > 0.5f) 1 else 0
+
+            if (prediction == label) {
+                correct++
+                fitness += 1f
+            } else {
+                val confidence = if (label == 1) output else 1f - output
+                fitness += confidence * 0.5f
+            }
+
+            // BCE loss
+            val p = output.coerceIn(1e-7f, 1f - 1e-7f)
+            val target = label.toFloat()
+            totalLoss += -(target * kotlin.math.ln(p.toDouble()).toFloat() +
+                    (1f - target) * kotlin.math.ln((1f - p).toDouble()).toFloat())
+        }
+
+        val accuracy = correct.toFloat() / batch.size * 100f
+        val normalizedFitness = fitness / batch.size
+        val avgLoss = totalLoss / batch.size
+        return Quadruple(normalizedFitness, accuracy, correct, avgLoss)
+    }
+
+    /**
      * V4: Evaluate with loss — returns fitness, accuracy, correctCount, avgLoss.
      */
     fun evaluateBatchWithLoss(

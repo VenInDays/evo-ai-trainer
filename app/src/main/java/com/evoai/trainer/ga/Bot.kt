@@ -25,13 +25,14 @@ data class Bot(
     val parentRank: Int = 0,         // Which elite parent this was cloned from (1 or 2)
     val familyId: Int = 0,           // Family lineage ID (inherits from parent)
     val generationBorn: Int = 0,     // Generation this model was created in
-    val fitnessHistory: MutableList<Float> = mutableListOf() // Last N fitness scores for sparkline
+    val fitnessHistory: MutableList<Float> = mutableListOf(), // Last N fitness scores for sparkline
+    val lineageChain: String = ""    // V5: Full lineage chain e.g. "Model 1 → Clone Gen 3 → Clone Gen 7"
 ) {
     /**
-     * Display name following V3/V4 convention: "Model [familyId] Gen [generationBorn]"
+     * V5: Display name — shows lineage chain when available, otherwise "Model [familyId] Gen [generationBorn]"
      */
     val displayName: String
-        get() = "Model $familyId Gen $generationBorn"
+        get() = if (lineageChain.isNotEmpty()) lineageChain.take(20) else "Model $familyId Gen $generationBorn"
 
     /**
      * Add a fitness score to the sparkline history.

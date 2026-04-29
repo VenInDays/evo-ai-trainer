@@ -308,7 +308,10 @@ class TrainingViewModel(application: Application) : AndroidViewModel(application
                     _fitnessHistory.postValue(history.toList())
 
                     // V4: Update history log (last 10 generations) with loss info
-                    val avgLoss = currentTrainer.getBots().map { it.loss }.average()
+                    val avgLoss = currentTrainer.getBots()
+                        .filter { it.loss < Float.MAX_VALUE }
+                        .map { it.loss }
+                        .average().toFloat()
                     val logEntry = String.format(
                         "Gen %d: Val %.1f%% | Loss %.3f | Decay %.3f | Stag %d",
                         gen, acc, avgLoss, currentTrainer.getDecayingMutationRate(), stagnant

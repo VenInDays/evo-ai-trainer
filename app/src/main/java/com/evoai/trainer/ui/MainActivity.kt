@@ -39,7 +39,6 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvGlobalBest: TextView
     private lateinit var tvActiveMutRate: TextView
     private lateinit var tvDecayingMutRate: TextView
-    private lateinit var tvFitness: TextView
     private lateinit var tvDatasetStatus: TextView
     private lateinit var tvLikesCount: TextView
     private lateinit var tvNonlikesCount: TextView
@@ -139,7 +138,6 @@ class MainActivity : AppCompatActivity() {
         tvGlobalBest = findViewById(R.id.tvGlobalBest)
         tvActiveMutRate = findViewById(R.id.tvActiveMutRate)
         tvDecayingMutRate = findViewById(R.id.tvDecayingMutRate)
-        tvFitness = findViewById(R.id.tvFitness)
         tvDatasetStatus = findViewById(R.id.tvDatasetStatus)
         tvLikesCount = findViewById(R.id.tvLikesCount)
         tvNonlikesCount = findViewById(R.id.tvNonlikesCount)
@@ -319,7 +317,7 @@ class MainActivity : AppCompatActivity() {
             progressTraining.progress = acc.toInt()
         }
 
-        viewModel.avgFitness.observe(this) { fitness -> tvFitness.text = String.format("%.2f", fitness) }
+        // Avg fitness is tracked in history log
 
         viewModel.bots.observe(this) { bots -> botAdapter.updateBots(bots) }
 

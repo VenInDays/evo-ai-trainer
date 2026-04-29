@@ -35,6 +35,11 @@ android {
                 storePassword = ksPassword
                 keyAlias = ksAlias
                 keyPassword = ksKeyPassword
+                // Enable v2+v3 signing
+                enableV1Signing = false
+                enableV2Signing = true
+                enableV3Signing = true
+                enableV4Signing = true
             }
         }
     }
